@@ -6,41 +6,35 @@
 create extension if not exists "uuid-ossp";
 
 -- ============================================
--- USERS TABLE (managed by Supabase Auth)
+-- PHASE 1: CREATE ALL TABLES (no foreign keys for cyclic deps)
 -- ============================================
+
+-- USERS TABLE (managed by Supabase Auth)
 create table users (
   id uuid references auth.users(id) primary key,
   email text unique,
   phone text,
   name text not null,
   role text not null default 'staff' check (role in ('admin', 'manager', 'staff')),
-  store_id uuid references stores(id),
+  store_id uuid,  -- FK added below after stores exists
   avatar_url text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- ============================================
 -- STORES TABLE
--- ============================================
 create table stores (
   id uuid default uuid_generate_v4() primary key,
   name text not null,
   address text,
   phone text,
   status text default 'active' check (status in ('active', 'pending', 'closed')),
-  manager_id uuid references users(id),
+  manager_id uuid,  -- FK added below after users exists
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- Add foreign key for users.store_id after stores exists
-alter table users add constraint fk_user_store 
-  foreign key (store_id) references stores(id);
-
--- ============================================
 -- CUSTOMERS TABLE
--- ============================================
 create table customers (
   id uuid default uuid_generate_v4() primary key,
   phone text not null,
@@ -57,9 +51,7 @@ create table customers (
   updated_at timestamptz default now()
 );
 
--- ============================================
 -- PACKAGES / SERVICES TABLE
--- ============================================
 create table packages (
   id uuid default uuid_generate_v4() primary key,
   name text not null,
@@ -75,9 +67,7 @@ create table packages (
   updated_at timestamptz default now()
 );
 
--- ============================================
 -- TRANSACTIONS TABLE (成交记录)
--- ============================================
 create table transactions (
   id uuid default uuid_generate_v4() primary key,
   customer_id uuid not null references customers(id),
@@ -96,9 +86,7 @@ create table transactions (
   updated_at timestamptz default now()
 );
 
--- ============================================
 -- DELIVERIES TABLE (交付记录)
--- ============================================
 create table deliveries (
   id uuid default uuid_generate_v4() primary key,
   transaction_id uuid not null references transactions(id),
@@ -112,9 +100,7 @@ create table deliveries (
   created_at timestamptz default now()
 );
 
--- ============================================
 -- TRAINING MATERIALS TABLE
--- ============================================
 create table training_materials (
   id uuid default uuid_generate_v4() primary key,
   package_id uuid references packages(id),
@@ -129,9 +115,7 @@ create table training_materials (
   updated_at timestamptz default now()
 );
 
--- ============================================
 -- CUSTOMER PHOTOS TABLE
--- ============================================
 create table customer_photos (
   id uuid default uuid_generate_v4() primary key,
   customer_id uuid not null references customers(id),
@@ -141,6 +125,18 @@ create table customer_photos (
   uploaded_by uuid references users(id),
   created_at timestamptz default now()
 );
+
+-- ============================================
+-- PHASE 2: ADD FOREIGN KEYS FOR CYCLIC DEPS
+-- ============================================
+
+-- users.store_id -> stores.id
+alter table users add constraint fk_user_store
+  foreign key (store_id) references stores(id);
+
+-- stores.manager_id -> users.id
+alter table stores add constraint fk_store_manager
+  foreign key (manager_id) references users(id);
 
 -- ============================================
 -- TRIGGER: UPDATE timestamps
@@ -201,7 +197,7 @@ on users for select using (get_current_user_role() = 'admin');
 
 create policy "Manager can view same store users"
 on users for select using (
-  get_current_user_role() = 'manager' 
+  get_current_user_role() = 'manager'
   and store_id = get_current_user_store_id()
 );
 
@@ -310,7 +306,7 @@ on customer_photos for select using (get_current_user_role() = 'admin');
 create policy "Staff can view own store customer photos"
 on customer_photos for select using (
   exists (
-    select 1 from customers 
+    select 1 from customers
     where customers.id = customer_photos.customer_id
     and customers.associated_store_id = get_current_user_store_id()
   )
