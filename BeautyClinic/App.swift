@@ -20,7 +20,7 @@ let supabase = SupabaseClient(
 @MainActor
 class UserState: ObservableObject {
     @Published var currentUser: User?
-    @Published var isLoading = true
+    @Published var isLoading = false
     
     var isAdmin: Bool { currentUser?.isAdmin ?? false }
     var storeId: UUID? { currentUser?.storeId }

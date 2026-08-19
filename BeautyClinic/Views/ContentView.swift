@@ -38,6 +38,9 @@ struct ContentView: View {
             } catch {
                 isAuthenticated = false
             }
+            await MainActor.run {
+                userState.isLoading = false
+            }
         }
     }
 }
