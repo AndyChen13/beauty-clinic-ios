@@ -1,36 +1,38 @@
-//  Views/CustomerDetailView.swift
-//  BeautyClinic
-//
-
+// Views/CustomerDetailView.swift
 import SwiftUI
 
 struct CustomerDetailView: View {
     let customer: Customer
-    @State private var isEditing = false
+    let stores: [Store]
     @State private var transactions: [Transaction] = []
-    @State private var isLoadingTransactions = false
+    @State private var photos: [CustomerPhoto] = []
+    @State private var isLoading = false
+    @State private var isEditing = false
+    
+    private var storeName: String {
+        if let storeId = customer.associatedStoreId,
+           let store = stores.first(where: { $0.id == storeId }) {
+            return store.name
+        }
+        return "未分配门店"
+    }
     
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Profile Card
                 profileCard
-                
-                // Info Card
                 infoCard
                 
-                // Medical History
                 if let history = customer.medicalHistory, !history.isEmpty {
                     medicalHistoryCard(history: history)
                 }
                 
-                // Preferences
                 if let prefs = customer.preferences, !prefs.isEmpty {
                     preferencesCard(prefs: prefs)
                 }
                 
-                // Recent Transactions
-                recentTransactionsSection
+                photosSection
+                transactionsSection
             }
             .padding()
         }
@@ -42,30 +44,42 @@ struct CustomerDetailView: View {
             }
         }
         .sheet(isPresented: $isEditing) {
-            CustomerEditView(mode: .edit(customer)) { _ in }
+            CustomerEditView(mode: .edit(customer), stores: stores) { _ in }
         }
-        .task { await loadTransactions() }
+        .task {
+            await loadTransactions()
+            await loadPhotos()
+        }
     }
     
     private var profileCard: some View {
         VStack(spacing: 14) {
-            AvatarView(name: customer.name, size: 72)
+            if let photoUrl = customer.photoUrl {
+                AsyncImage(url: URL(string: photoUrl)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    AvatarView(name: customer.name, size: 72)
+                }
+                .frame(width: 72, height: 72)
+                .clipShape(Circle())
+            } else {
+                AvatarView(name: customer.name, size: 72)
+            }
+            
             Text(customer.name)
                 .font(.title2.weight(.bold))
             Text(customer.phone)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             
+            Text("归属: \(storeName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
             HStack(spacing: 16) {
                 InfoBadge(label: "性别", value: customer.genderDisplay)
                 if let age = customer.age {
                     InfoBadge(label: "年龄", value: "\(age)岁")
-                }
-                if let birthdate = customer.birthdate {
-                    InfoBadge(
-                        label: "生日",
-                        value: birthdate.formatted(.dateTime.month().day())
-                    )
                 }
             }
         }
@@ -126,19 +140,59 @@ struct CustomerDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
-    private var recentTransactionsSection: some View {
+    private var photosSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("照片记录")
+                    .font(.headline)
+                Spacer()
+                if isLoading {
+                    ProgressView().scaleEffect(0.8)
+                }
+            }
+            
+            if photos.isEmpty && !isLoading {
+                Text("暂无照片")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(photos) { photo in
+                            if let url = URL(string: photo.photoUrl) {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(UIColor.secondarySystemBackground))
+                                }
+                                .frame(width: 100, height: 100)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private var transactionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("消费记录")
                     .font(.headline)
                 Spacer()
-                if isLoadingTransactions {
-                    ProgressView()
-                        .scaleEffect(0.8)
+                if isLoading {
+                    ProgressView().scaleEffect(0.8)
                 }
             }
             
-            if transactions.isEmpty && !isLoadingTransactions {
+            if transactions.isEmpty && !isLoading {
                 Text("暂无消费记录")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
@@ -156,7 +210,6 @@ struct CustomerDetailView: View {
     }
     
     private func loadTransactions() async {
-        isLoadingTransactions = true
         do {
             let result: [Transaction] = try await supabase
                 .from("transactions")
@@ -174,80 +227,43 @@ struct CustomerDetailView: View {
         } catch {
             print("Error loading transactions: \(error)")
         }
-        isLoadingTransactions = false
     }
-}
-
-struct InfoBadge: View {
-    let label: String
-    let value: String
     
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.subheadline.weight(.medium))
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+    private func loadPhotos() async {
+        do {
+            let result: [CustomerPhoto] = try await supabase
+                .from("customer_photos")
+                .select()
+                .eq("customer_id", value: customer.id)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+            photos = result
+        } catch {
+            print("Error loading photos: \(error)")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(UIColor.tertiarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-struct InfoRow: View {
-    let label: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.subheadline.weight(.medium))
-        }
-    }
-}
-
-struct TransactionMiniRow: View {
-    let transaction: Transaction
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(transaction.packageName ?? "未知套餐")
-                    .font(.subheadline.weight(.medium))
-                Text(transaction.transactionDate.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text("¥\(String(format: "%.0f", transaction.amount))")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.accentColor)
-        }
-        .padding(.vertical, 6)
     }
 }
 
 #Preview {
     NavigationStack {
-        CustomerDetailView(customer: Customer(
-            id: UUID(),
-            phone: "13800138000",
-            name: "张女士",
-            gender: "female",
-            birthdate: Date(timeIntervalSince1970: 631152000),
-            medicalHistory: "对玻尿酸过敏",
-            preferences: ["偏好项目": "水光针", "来源渠道": "小红书"],
-            associatedStoreId: nil,
-            lastVisit: nil,
-            createdAt: nil,
-            updatedAt: nil
-        ))
+        CustomerDetailView(
+            customer: Customer(
+                id: UUID(),
+                phone: "13800138000",
+                name: "张女士",
+                gender: "female",
+                birthdate: Date(timeIntervalSince1970: 631152000),
+                medicalHistory: "对玻尿酸过敏",
+                preferences: ["偏好项目": "水光针"],
+                photoUrl: nil,
+                associatedStoreId: nil,
+                createdBy: nil,
+                lastVisit: nil,
+                createdAt: nil,
+                updatedAt: nil
+            ),
+            stores: []
+        )
     }
 }

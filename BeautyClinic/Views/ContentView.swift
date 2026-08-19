@@ -1,20 +1,18 @@
-//  Views/ContentView.swift
-//  BeautyClinic
-//
-
+// Views/ContentView.swift
 import SwiftUI
 import Supabase
 
 struct ContentView: View {
+    @EnvironmentObject var userState: UserState
     @State private var isAuthenticated = false
-    @State private var isChecking = true
     
     var body: some View {
         Group {
-            if isChecking {
+            if userState.isLoading {
                 SplashScreen()
-            } else if isAuthenticated {
+            } else if isAuthenticated, userState.currentUser != nil {
                 MainTabView()
+                    .environmentObject(userState)
             } else {
                 LoginView(onLoginSuccess: { isAuthenticated = true })
             }
@@ -26,11 +24,13 @@ struct ContentView: View {
         Task {
             do {
                 let session = try await supabase.auth.session
-                isAuthenticated = !session.accessToken.isEmpty
+                if !session.accessToken.isEmpty {
+                    await userState.loadUser()
+                    isAuthenticated = true
+                }
             } catch {
                 isAuthenticated = false
             }
-            isChecking = false
         }
     }
 }
@@ -59,4 +59,5 @@ struct SplashScreen: View {
 
 #Preview {
     ContentView()
+        .environmentObject(UserState())
 }

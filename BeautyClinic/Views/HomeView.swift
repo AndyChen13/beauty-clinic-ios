@@ -1,35 +1,31 @@
-//  Views/HomeView.swift
-//  BeautyClinic
-//
-
+// Views/HomeView.swift
 import SwiftUI
 
 struct HomeView: View {
+    @EnvironmentObject var userState: UserState
     @State private var customersCount = 0
-    @State private var todayAppointments = 0
+    @State private var todayTransactions = 0
     @State private var monthlyRevenue: Double = 0
-    @State private var isLoading = true
+    @State private var pendingDeliveries = 0
     @State private var recentTransactions: [Transaction] = []
+    @State private var isLoading = true
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Header
                     HeaderSection()
                     
-                    // Stats
                     StatsGrid(
                         customers: customersCount,
-                        appointments: todayAppointments,
+                        transactions: todayTransactions,
                         revenue: monthlyRevenue,
+                        pending: pendingDeliveries,
                         isLoading: isLoading
                     )
                     
-                    // Quick Actions
                     QuickActionsSection()
                     
-                    // Recent Activity
                     RecentActivitySection(transactions: recentTransactions, isLoading: isLoading)
                 }
                 .padding()
@@ -45,11 +41,38 @@ struct HomeView: View {
         defer { isLoading = false }
         
         do {
-            async let customersTask = supabase.from("customers")
-                .select("count", head: true)
+            let calendar = Calendar.current
+            let now = Date()
+            let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
+            let startOfDay = calendar.startOfDay(for: now)
+            
+            async let customersCountTask = supabase
+                .from("customers")
+                .select("*", head: true)
                 .execute()
             
-            async let transactionsTask = supabase.from("transactions")
+            async let todayTransTask: [Transaction] = supabase
+                .from("transactions")
+                .select("amount")
+                .gte("transaction_date", value: startOfDay)
+                .execute()
+                .value
+            
+            async let monthlyTransTask: [Transaction] = supabase
+                .from("transactions")
+                .select("amount")
+                .gte("transaction_date", value: startOfMonth)
+                .execute()
+                .value
+            
+            async let pendingTask = supabase
+                .from("transactions")
+                .select("*", head: true)
+                .in("status", value: ["pending", "confirmed", "in_progress"])
+                .execute()
+            
+            async let recentTask: [Transaction] = supabase
+                .from("transactions")
                 .select("""
                     *,
                     customers(name),
@@ -58,23 +81,28 @@ struct HomeView: View {
                 .order("transaction_date", ascending: false)
                 .limit(5)
                 .execute()
-                .value as [Transaction]
+                .value
             
-            let _ = try await customersTask
-            let transactions = try await transactionsTask
+            let (_, tTrans, mTrans, _, recent) = try await (
+                customersCountTask,
+                todayTransTask,
+                monthlyTransTask,
+                pendingTask,
+                recentTask
+            )
             
             await MainActor.run {
-                recentTransactions = transactions
-                customersCount = 0 // Will be populated from count response
+                customersCount = 0 // Will be set from count
+                todayTransactions = tTrans.count
+                monthlyRevenue = mTrans.reduce(0) { $0 + $1.amount }
+                pendingDeliveries = 0 // Will be set from count
+                recentTransactions = recent
             }
-            
         } catch {
             print("Dashboard load error: \(error)")
         }
     }
 }
-
-// MARK: - Subviews
 
 struct HeaderSection: View {
     @State private var userName = "管理员"
@@ -96,13 +124,13 @@ struct HeaderSection: View {
 
 struct StatsGrid: View {
     let customers: Int
-    let appointments: Int
+    let transactions: Int
     let revenue: Double
+    let pending: Int
     let isLoading: Bool
     
     var body: some View {
         LazyVGrid(columns: [
-            GridItem(.flexible()),
             GridItem(.flexible()),
             GridItem(.flexible())
         ], spacing: 12) {
@@ -113,16 +141,22 @@ struct StatsGrid: View {
                 color: .blue
             )
             StatCard(
-                title: "今日预约",
-                value: isLoading ? "--" : "\(appointments)",
-                icon: "calendar.badge.clock",
-                color: .orange
+                title: "今日成交",
+                value: isLoading ? "--" : "\(transactions)",
+                icon: "cart.fill",
+                color: .green
             )
             StatCard(
                 title: "本月收入",
                 value: isLoading ? "--" : "¥\(Int(revenue))",
                 icon: "chart.line.uptrend.xyaxis",
-                color: .green
+                color: .orange
+            )
+            StatCard(
+                title: "待交付",
+                value: isLoading ? "--" : "\(pending)",
+                icon: "clock.fill",
+                color: .purple
             )
         }
     }
@@ -165,7 +199,7 @@ struct QuickActionsSection: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 QuickActionButton(title: "新增客户", icon: "person.badge.plus", color: .blue) {}
                 QuickActionButton(title: "记录成交", icon: "doc.badge.plus", color: .green) {}
-                QuickActionButton(title: "预约管理", icon: "calendar.badge.plus", color: .orange) {}
+                QuickActionButton(title: "记录交付", icon: "checkmark.circle", color: .orange) {}
                 QuickActionButton(title: "数据报表", icon: "chart.pie.fill", color: .purple) {}
             }
         }
@@ -266,9 +300,9 @@ struct ActivityRow: View {
                 Text("¥\(String(format: "%.0f", transaction.amount))")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.accentColor)
-                Text(transaction.status.displayName)
+                Text("\(transaction.completedSessions)/\(transaction.totalSessions)次")
                     .font(.caption2)
-                    .foregroundStyle(transaction.status.color)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()
@@ -277,61 +311,7 @@ struct ActivityRow: View {
     }
 }
 
-// MARK: - Shimmer Effect
-
-struct ShimmerModifier: ViewModifier {
-    @State private var phase: CGFloat = 0
-    
-    func body(content: Content) -> some View {
-        content
-            .overlay(
-                GeometryReader { geo in
-                    LinearGradient(
-                        colors: [.clear, .white.opacity(0.4), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: geo.size.width * 2)
-                    .offset(x: -geo.size.width + phase * geo.size.width * 2)
-                }
-                .mask(content)
-            )
-            .onAppear {
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                    phase = 1
-                }
-            }
-    }
-}
-
-extension View {
-    func shimmering() -> some View {
-        modifier(ShimmerModifier())
-    }
-}
-
-struct EmptyStateView: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    
-    var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 40))
-                .foregroundStyle(.tertiary)
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 30)
-    }
-}
-
 #Preview {
     HomeView()
+        .environmentObject(UserState())
 }

@@ -1,11 +1,10 @@
-//  Views/StoreListView.swift
-//  BeautyClinic
-//
-
+// Views/StoreListView.swift
 import SwiftUI
 
 struct StoreListView: View {
+    @EnvironmentObject var userState: UserState
     @State private var stores: [Store] = []
+    @State private var users: [User] = []
     @State private var isLoading = false
     @State private var showingAddSheet = false
     @State private var showError = false
@@ -19,7 +18,7 @@ struct StoreListView: View {
                         ForEach(0..<5) { _ in
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(Color(UIColor.secondarySystemBackground))
-                                .frame(height: 72)
+                                .frame(height: 80)
                                 .shimmering()
                         }
                     }
@@ -34,7 +33,7 @@ struct StoreListView: View {
                 } else {
                     List {
                         ForEach(stores) { store in
-                            StoreRow(store: store)
+                            StoreRow(store: store, users: users)
                         }
                         .onDelete(perform: deleteStore)
                     }
@@ -43,19 +42,21 @@ struct StoreListView: View {
             }
             .navigationTitle("门店管理")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddSheet = true }) {
-                        Image(systemName: "plus")
+                if userState.isAdmin {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showingAddSheet = true }) {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
             .sheet(isPresented: $showingAddSheet) {
-                StoreEditView(mode: .create) { newStore in
+                StoreEditView(mode: .create, users: users) { newStore in
                     stores.append(newStore)
                 }
             }
-            .task { await loadStores() }
-            .refreshable { await loadStores() }
+            .task { await loadData() }
+            .refreshable { await loadData() }
             .alert("错误", isPresented: $showError) {
                 Button("确定", role: .cancel) {}
             } message: {
@@ -64,25 +65,34 @@ struct StoreListView: View {
         }
     }
     
-    private func loadStores() async {
+    private func loadData() async {
         isLoading = true
         defer { isLoading = false }
         
         do {
-            let result: [Store] = try await supabase
+            async let storesTask: [Store] = supabase
                 .from("stores")
                 .select()
                 .order("created_at", ascending: false)
                 .execute()
                 .value
-            stores = result
+            
+            async let usersTask: [User] = supabase
+                .from("users")
+                .select()
+                .execute()
+                .value
+            
+            let (s, u) = try await (storesTask, usersTask)
+            stores = s
+            users = u
         } catch {
             print("Error loading stores: \(error)")
         }
     }
     
     private func deleteStore(at offsets: IndexSet) {
-        guard let index = offsets.first else { return }
+        guard userState.isAdmin, let index = offsets.first else { return }
         let store = stores[index]
         
         Task {
@@ -93,7 +103,7 @@ struct StoreListView: View {
                     .eq("id", value: store.id)
                     .execute()
                 
-                _ = await MainActor.run {
+                await MainActor.run {
                     stores.remove(at: index)
                 }
             } catch {
@@ -106,6 +116,15 @@ struct StoreListView: View {
 
 struct StoreRow: View {
     let store: Store
+    let users: [User]
+    
+    private var managerName: String {
+        if let managerId = store.managerId,
+           let user = users.first(where: { $0.id == managerId }) {
+            return user.name
+        }
+        return "未指定"
+    }
     
     var body: some View {
         HStack(spacing: 14) {
@@ -140,6 +159,10 @@ struct StoreRow: View {
                     Text(store.status.displayName)
                         .font(.caption2)
                         .foregroundStyle(store.status.color)
+                    
+                    Text("负责人: \(managerName)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
             
@@ -158,12 +181,14 @@ struct StoreEditView: View {
     @Environment(\.dismiss) private var dismiss
     
     let mode: StoreEditMode
+    let users: [User]
     let onSave: (Store) -> Void
     
     @State private var name = ""
     @State private var address = ""
     @State private var phone = ""
     @State private var status = StoreStatus.active
+    @State private var managerId: UUID?
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -177,6 +202,20 @@ struct StoreEditView: View {
                         .lineLimit(2...3)
                     TextField("联系电话", text: $phone)
                         .keyboardType(.phonePad)
+                }
+                
+                Section("负责人") {
+                    if users.isEmpty {
+                        Text("暂无可选负责人")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("选择负责人", selection: $managerId) {
+                            Text("不指定").tag(nil as UUID?)
+                            ForEach(users) { user in
+                                Text(user.name).tag(user.id as UUID?)
+                            }
+                        }
+                    }
                 }
                 
                 Section("状态") {
@@ -225,18 +264,17 @@ struct StoreEditView: View {
                     address: address.isEmpty ? nil : address,
                     phone: phone.isEmpty ? nil : phone,
                     status: status,
-                    managerUserId: nil
+                    managerId: managerId
                 )
                 
-                let created: Store = try await supabase
+                let created: [Store] = try await supabase
                     .from("stores")
                     .insert(storeData)
                     .select()
-                    .single()
                     .execute()
                     .value
                 
-                onSave(created)
+                onSave(created.first!)
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -249,4 +287,5 @@ struct StoreEditView: View {
 
 #Preview {
     StoreListView()
+        .environmentObject(UserState())
 }

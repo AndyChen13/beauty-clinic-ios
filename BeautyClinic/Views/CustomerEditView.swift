@@ -1,8 +1,6 @@
-//  Views/CustomerEditView.swift
-//  BeautyClinic
-//
-
+// Views/CustomerEditView.swift
 import SwiftUI
+import PhotosUI
 
 enum CustomerEditMode {
     case create
@@ -11,8 +9,10 @@ enum CustomerEditMode {
 
 struct CustomerEditView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var userState: UserState
     
     let mode: CustomerEditMode
+    let stores: [Store]
     let onSave: (Customer) -> Void
     
     @State private var name = ""
@@ -22,22 +22,58 @@ struct CustomerEditView: View {
     @State private var hasBirthdate = false
     @State private var medicalHistory = ""
     @State private var notes = ""
+    @State private var selectedStoreId: UUID?
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoData: Data?
     
     private var isEditing: Bool {
         if case .edit = mode { return true }
         return false
     }
     
-    private var navigationTitle: String {
-        isEditing ? "编辑客户" : "添加客户"
-    }
-    
     var body: some View {
         NavigationStack {
             Form {
+                Section("头像") {
+                    HStack {
+                        Spacer()
+                        if let photoData = photoData, let uiImage = UIImage(data: photoData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipShape(Circle())
+                        } else if case .edit(let customer) = mode, let photoUrl = customer.photoUrl {
+                            AsyncImage(url: URL(string: photoUrl)) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                AvatarView(name: name, size: 80)
+                            }
+                            .frame(width: 80, height: 80)
+                            .clipShape(Circle())
+                        } else {
+                            AvatarView(name: name, size: 80)
+                        }
+                        Spacer()
+                    }
+                    
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Text(photoData != nil ? "更换照片" : "选择照片")
+                            .font(.subheadline)
+                            .foregroundColor(.accentColor)
+                    }
+                    .onChange(of: selectedPhoto) { _, newItem in
+                        Task {
+                            if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                                photoData = data
+                            }
+                        }
+                    }
+                }
+                
                 Section("基本信息") {
                     TextField("姓名 *", text: $name)
                     
@@ -60,29 +96,31 @@ struct CustomerEditView: View {
                     }
                 }
                 
+                Section("归属门店") {
+                    if stores.isEmpty {
+                        Text("暂无门店可选")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("选择门店", selection: $selectedStoreId) {
+                            Text("请选择门店").tag(nil as UUID?)
+                            ForEach(stores) { store in
+                                Text(store.name).tag(store.id as UUID?)
+                            }
+                        }
+                    }
+                }
+                
                 Section("医疗记录") {
                     TextEditor(text: $medicalHistory)
                         .frame(minHeight: 80)
-                    if medicalHistory.isEmpty {
-                        Text("过敏史、既往病史等...")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, -60)
-                    }
                 }
                 
                 Section("备注") {
                     TextEditor(text: $notes)
                         .frame(minHeight: 60)
-                    if notes.isEmpty {
-                        Text("客户偏好、来源渠道等...")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, -40)
-                    }
                 }
             }
-            .navigationTitle(navigationTitle)
+            .navigationTitle(isEditing ? "编辑客户" : "添加客户")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -91,8 +129,7 @@ struct CustomerEditView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: saveCustomer) {
                         if isSaving {
-                            ProgressView()
-                                .scaleEffect(0.8)
+                            ProgressView().scaleEffect(0.8)
                         } else {
                             Text("保存")
                         }
@@ -110,6 +147,7 @@ struct CustomerEditView: View {
                     name = customer.name
                     phone = customer.phone
                     gender = customer.gender ?? "female"
+                    selectedStoreId = customer.associatedStoreId
                     if let bd = customer.birthdate {
                         birthdate = bd
                         hasBirthdate = true
@@ -118,6 +156,8 @@ struct CustomerEditView: View {
                     if let prefs = customer.preferences {
                         notes = prefs.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
                     }
+                } else {
+                    selectedStoreId = userState.storeId
                 }
             }
         }
@@ -130,6 +170,21 @@ struct CustomerEditView: View {
         
         Task {
             do {
+                var photoUrl: String?
+                
+                // Upload photo if selected
+                if let photoData = photoData {
+                    let fileName = "\(UUID().uuidString).jpg"
+                    let _ = try await supabase.storage
+                        .from("customer-photos")
+                        .upload(fileName, data: photoData)
+                    
+                    photoUrl = try supabase.storage
+                        .from("customer-photos")
+                        .getPublicURL(path: fileName)
+                        .absoluteString
+                }
+                
                 let customerData = CustomerInsert(
                     phone: phone,
                     name: name,
@@ -137,30 +192,82 @@ struct CustomerEditView: View {
                     birthdate: hasBirthdate ? birthdate : nil,
                     medicalHistory: medicalHistory.isEmpty ? nil : medicalHistory,
                     preferences: notes.isEmpty ? nil : parseNotes(notes),
-                    associatedStoreId: nil
+                    associatedStoreId: selectedStoreId
                 )
                 
+                var created: Customer
                 if case .edit(let existing) = mode {
-                    let updated: Customer = try await supabase
+                    struct CustomerUpdate: Encodable {
+                        let phone: String
+                        let name: String
+                        let gender: String
+                        let associated_store_id: String?
+                        let medical_history: String?
+                        let preferences: [String: String]?
+                        let birthdate: String?
+                        let photo_url: String?
+                    }
+                    
+                    var birthdateString: String?
+                    if hasBirthdate {
+                        let formatter = ISO8601DateFormatter()
+                        birthdateString = formatter.string(from: birthdate)
+                    }
+                    
+                    let updateData = CustomerUpdate(
+                        phone: phone,
+                        name: name,
+                        gender: gender,
+                        associated_store_id: selectedStoreId?.uuidString,
+                        medical_history: medicalHistory.isEmpty ? nil : medicalHistory,
+                        preferences: notes.isEmpty ? nil : parseNotes(notes),
+                        birthdate: birthdateString,
+                        photo_url: photoUrl
+                    )
+                    
+                    let result: [Customer] = try await supabase
                         .from("customers")
-                        .update(customerData)
+                        .update(updateData)
                         .eq("id", value: existing.id)
                         .select()
-                        .single()
                         .execute()
                         .value
-                    onSave(updated)
+                    created = result.first!
                 } else {
-                    let created: Customer = try await supabase
+                    let result: [Customer] = try await supabase
                         .from("customers")
                         .insert(customerData)
                         .select()
-                        .single()
                         .execute()
                         .value
-                    onSave(created)
+                    created = result.first!
+                    
+                    // Upload photo after customer creation if needed
+                    if let photoUrl = photoUrl {
+                        try await supabase
+                            .from("customers")
+                            .update(["photo_url": photoUrl])
+                            .eq("id", value: created.id)
+                            .execute()
+                        created = Customer(
+                            id: created.id,
+                            phone: created.phone,
+                            name: created.name,
+                            gender: created.gender,
+                            birthdate: created.birthdate,
+                            medicalHistory: created.medicalHistory,
+                            preferences: created.preferences,
+                            photoUrl: photoUrl,
+                            associatedStoreId: created.associatedStoreId,
+                            createdBy: created.createdBy,
+                            lastVisit: created.lastVisit,
+                            createdAt: created.createdAt,
+                            updatedAt: created.updatedAt
+                        )
+                    }
                 }
                 
+                onSave(created)
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -186,5 +293,6 @@ struct CustomerEditView: View {
 }
 
 #Preview {
-    CustomerEditView(mode: .create) { _ in }
+    CustomerEditView(mode: .create, stores: []) { _ in }
+        .environmentObject(UserState())
 }

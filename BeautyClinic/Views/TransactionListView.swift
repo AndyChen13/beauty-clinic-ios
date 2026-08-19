@@ -1,14 +1,17 @@
-//  Views/TransactionListView.swift
-//  BeautyClinic
-//
-
+// Views/TransactionListView.swift
 import SwiftUI
 
 struct TransactionListView: View {
+    @EnvironmentObject var userState: UserState
     @State private var transactions: [Transaction] = []
+    @State private var deliveries: [Delivery] = []
+    @State private var customers: [Customer] = []
+    @State private var packages: [ServicePackage] = []
     @State private var isLoading = false
     @State private var showingRecordSheet = false
     @State private var selectedStatus: TransactionStatus? = nil
+    @State private var selectedTransaction: Transaction? = nil
+    @State private var showingDeliverySheet = false
     
     var filteredTransactions: [Transaction] {
         guard let status = selectedStatus else { return transactions }
@@ -18,24 +21,19 @@ struct TransactionListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Status Filter
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         StatusFilterChip(
                             title: "全部",
                             isSelected: selectedStatus == nil
-                        ) {
-                            selectedStatus = nil
-                        }
+                        ) { selectedStatus = nil }
                         
                         ForEach(TransactionStatus.allCases, id: \.self) { status in
                             StatusFilterChip(
                                 title: status.displayName,
                                 isSelected: selectedStatus == status,
                                 color: status.color
-                            ) {
-                                selectedStatus = status
-                            }
+                            ) { selectedStatus = status }
                         }
                     }
                     .padding(.horizontal)
@@ -47,7 +45,7 @@ struct TransactionListView: View {
                         ForEach(0..<5) { _ in
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(Color(UIColor.secondarySystemBackground))
-                                .frame(height: 90)
+                                .frame(height: 120)
                                 .shimmering()
                         }
                     }
@@ -62,7 +60,11 @@ struct TransactionListView: View {
                 } else {
                     List {
                         ForEach(filteredTransactions) { transaction in
-                            TransactionRow(transaction: transaction)
+                            TransactionRow(transaction: transaction, deliveries: deliveriesFor(transaction))
+                                .onTapGesture {
+                                    selectedTransaction = transaction
+                                    showingDeliverySheet = true
+                                }
                         }
                     }
                     .listStyle(.plain)
@@ -77,21 +79,38 @@ struct TransactionListView: View {
                 }
             }
             .sheet(isPresented: $showingRecordSheet) {
-                TransactionRecordView { newTransaction in
+                TransactionRecordView(
+                    customers: customers,
+                    packages: packages
+                ) { newTransaction in
                     transactions.insert(newTransaction, at: 0)
                 }
             }
-            .task { await loadTransactions() }
-            .refreshable { await loadTransactions() }
+            .sheet(isPresented: $showingDeliverySheet) {
+                if let transaction = selectedTransaction {
+                    DeliveryRecordView(
+                        transaction: transaction,
+                        existingDeliveries: deliveriesFor(transaction)
+                    ) { _ in
+                        Task { await loadData() }
+                    }
+                }
+            }
+            .task { await loadData() }
+            .refreshable { await loadData() }
         }
     }
     
-    private func loadTransactions() async {
+    private func deliveriesFor(_ transaction: Transaction) -> [Delivery] {
+        deliveries.filter { $0.transactionId == transaction.id }
+    }
+    
+    private func loadData() async {
         isLoading = true
         defer { isLoading = false }
         
         do {
-            let result: [Transaction] = try await supabase
+            async let transactionsTask: [Transaction] = supabase
                 .from("transactions")
                 .select("""
                     *,
@@ -102,7 +121,31 @@ struct TransactionListView: View {
                 .order("transaction_date", ascending: false)
                 .execute()
                 .value
-            transactions = result
+            
+            async let deliveriesTask: [Delivery] = supabase
+                .from("deliveries")
+                .select()
+                .order("delivery_date", ascending: false)
+                .execute()
+                .value
+            
+            async let customersTask: [Customer] = supabase
+                .from("customers")
+                .select()
+                .execute()
+                .value
+            
+            async let packagesTask: [ServicePackage] = supabase
+                .from("packages")
+                .select()
+                .execute()
+                .value
+            
+            let (t, d, c, p) = try await (transactionsTask, deliveriesTask, customersTask, packagesTask)
+            transactions = t
+            deliveries = d
+            customers = c
+            packages = p
         } catch {
             print("Error loading transactions: \(error)")
         }
@@ -130,19 +173,11 @@ struct StatusFilterChip: View {
 
 struct TransactionRow: View {
     let transaction: Transaction
+    let deliveries: [Delivery]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
-                Circle()
-                    .fill(transaction.status.color.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 16))
-                            .foregroundColor(transaction.status.color)
-                    )
-                
                 VStack(alignment: .leading, spacing: 3) {
                     Text(transaction.packageName ?? "未知套餐")
                         .font(.subheadline.weight(.medium))
@@ -176,11 +211,37 @@ struct TransactionRow: View {
                     .foregroundStyle(.secondary)
             }
             
-            if let notes = transaction.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.caption)
+            // Progress bar
+            HStack(spacing: 8) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(UIColor.tertiarySystemBackground))
+                            .frame(height: 8)
+                        
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(transaction.status.color)
+                            .frame(width: geo.size.width * transaction.progressPercentage, height: 8)
+                    }
+                }
+                .frame(height: 8)
+                
+                Text("\(transaction.completedSessions)/\(transaction.totalSessions)次")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .frame(width: 50)
+            }
+            
+            if let estDate = transaction.estimatedCompletionDate {
+                Text("预计完成: \(formatDate(estDate))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            
+            if !deliveries.isEmpty {
+                Text("已交付 \(deliveries.count) 次")
+                    .font(.caption2)
+                    .foregroundColor(.accentColor)
             }
         }
         .padding()
@@ -190,7 +251,7 @@ struct TransactionRow: View {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd HH:mm"
+        formatter.dateFormat = "MM/dd"
         return formatter.string(from: date)
     }
 }
@@ -198,14 +259,16 @@ struct TransactionRow: View {
 struct TransactionRecordView: View {
     @Environment(\.dismiss) private var dismiss
     
+    let customers: [Customer]
+    let packages: [ServicePackage]
     let onSave: (Transaction) -> Void
     
-    @State private var customerName = ""
-    @State private var packageName = ""
+    @State private var selectedCustomerId: UUID?
+    @State private var selectedPackageId: UUID?
     @State private var amount = ""
+    @State private var totalSessions = "1"
     @State private var notes = ""
     @State private var selectedDate = Date()
-    @State private var status = TransactionStatus.pending
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -214,22 +277,39 @@ struct TransactionRecordView: View {
         NavigationStack {
             Form {
                 Section("客户信息") {
-                    TextField("客户姓名 *", text: $customerName)
-                }
-                
-                Section("服务信息") {
-                    TextField("套餐名称 *", text: $packageName)
-                    
-                    TextField("金额 (¥) *", text: $amount)
-                        .keyboardType(.decimalPad)
-                    
-                    DatePicker("预约/成交时间", selection: $selectedDate)
-                    
-                    Picker("状态", selection: $status) {
-                        ForEach(TransactionStatus.allCases, id: \.self) { s in
-                            Text(s.displayName).tag(s)
+                    if customers.isEmpty {
+                        Text("暂无客户")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("选择客户", selection: $selectedCustomerId) {
+                            Text("请选择").tag(nil as UUID?)
+                            ForEach(customers) { customer in
+                                Text(customer.name).tag(customer.id as UUID?)
+                            }
                         }
                     }
+                }
+                
+                Section("套餐信息") {
+                    if packages.isEmpty {
+                        Text("暂无套餐")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("选择套餐", selection: $selectedPackageId) {
+                            Text("请选择").tag(nil as UUID?)
+                            ForEach(packages.filter { $0.isActive }) { package in
+                                Text("\(package.name) (¥\(Int(package.price)))").tag(package.id as UUID?)
+                            }
+                        }
+                    }
+                }
+                
+                Section("成交信息") {
+                    TextField("金额 (¥) *", text: $amount)
+                        .keyboardType(.decimalPad)
+                    TextField("总次数", text: $totalSessions)
+                        .keyboardType(.numberPad)
+                    DatePicker("成交时间", selection: $selectedDate)
                 }
                 
                 Section("备注") {
@@ -251,7 +331,7 @@ struct TransactionRecordView: View {
                             Text("保存")
                         }
                     }
-                    .disabled(customerName.isEmpty || packageName.isEmpty || amount.isEmpty || isSaving)
+                    .disabled(selectedCustomerId == nil || selectedPackageId == nil || amount.isEmpty || isSaving)
                 }
             }
             .alert("保存失败", isPresented: $showError) {
@@ -263,25 +343,33 @@ struct TransactionRecordView: View {
     }
     
     private func saveTransaction() {
-        guard let amountValue = Double(amount),
-              !customerName.isEmpty,
-              !packageName.isEmpty else { return }
+        guard let customerId = selectedCustomerId,
+              let packageId = selectedPackageId,
+              let amountValue = Double(amount),
+              let sessions = Int(totalSessions) else { return }
         
         isSaving = true
         
         Task {
             do {
-                // Note: In a real app, you'd look up the actual customer_id and package_id
-                // For now, we'll create with placeholder IDs that will need proper handling
+                // Get customer to find store
+                let customer = customers.first { $0.id == customerId }
+                let storeId = customer?.associatedStoreId ?? UUID()
+                
+                // Calculate estimated completion date
+                let calendar = Calendar.current
+                let estDate = calendar.date(byAdding: .day, value: sessions * 7, to: selectedDate)
+                
                 let transactionData = TransactionInsert(
-                    customerId: UUID(),
-                    storeId: UUID(),
-                    packageId: UUID(),
+                    customerId: customerId,
+                    storeId: storeId,
+                    packageId: packageId,
                     staffUserId: nil,
                     amount: amountValue,
+                    totalSessions: sessions,
                     transactionDate: selectedDate,
-                    scheduledAt: nil,
-                    status: status,
+                    estimatedCompletionDate: estDate,
+                    status: .confirmed,
                     notes: notes.isEmpty ? nil : notes
                 )
                 
@@ -304,6 +392,126 @@ struct TransactionRecordView: View {
     }
 }
 
+struct DeliveryRecordView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let transaction: Transaction
+    let existingDeliveries: [Delivery]
+    let onSave: (Delivery) -> Void
+    
+    @State private var notes = ""
+    @State private var isSaving = false
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("成交信息") {
+                    InfoRow(label: "客户", value: transaction.customerName ?? "未知")
+                    InfoRow(label: "套餐", value: transaction.packageName ?? "未知")
+                    InfoRow(label: "总金额", value: "¥\(String(format: "%.0f", transaction.amount))")
+                    InfoRow(label: "进度", value: "\(transaction.completedSessions)/\(transaction.totalSessions)次")
+                }
+                
+                Section("交付记录") {
+                    if existingDeliveries.isEmpty {
+                        Text("暂无交付记录")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(existingDeliveries) { delivery in
+                            HStack {
+                                Text("第\(delivery.sessionNumber)次交付")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(delivery.deliveryDate.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                
+                if transaction.completedSessions < transaction.totalSessions {
+                    Section("新增交付") {
+                        TextEditor(text: $notes)
+                            .frame(minHeight: 60)
+                    }
+                } else {
+                    Section {
+                        Text("已全部交付完成")
+                            .foregroundColor(.green)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
+            }
+            .navigationTitle("交付管理")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+                if transaction.completedSessions < transaction.totalSessions {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(action: recordDelivery) {
+                            if isSaving {
+                                ProgressView().scaleEffect(0.8)
+                            } else {
+                                Text("记录交付")
+                            }
+                        }
+                        .disabled(isSaving)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func recordDelivery() {
+        isSaving = true
+        
+        Task {
+            do {
+                let nextSession = transaction.completedSessions + 1
+                
+                let deliveryData = DeliveryInsert(
+                    transactionId: transaction.id,
+                    customerId: transaction.customerId,
+                    storeId: transaction.storeId,
+                    staffUserId: nil,
+                    sessionNumber: nextSession,
+                    notes: notes.isEmpty ? nil : notes,
+                    photos: nil
+                )
+                
+                let created: Delivery = try await supabase
+                    .from("deliveries")
+                    .insert(deliveryData)
+                    .select()
+                    .single()
+                    .execute()
+                    .value
+                
+                // Update transaction
+                _ = try await supabase
+                    .from("transactions")
+                    .update([
+                        "completed_sessions": String(nextSession),
+                        "first_delivery_date": existingDeliveries.isEmpty ? ISO8601DateFormatter().string(from: Date()) : nil,
+                        "status": nextSession >= transaction.totalSessions ? "completed" : "in_progress"
+                    ])
+                    .eq("id", value: transaction.id)
+                    .execute()
+                
+                onSave(created)
+                dismiss()
+            } catch {
+                print("Error recording delivery: \(error)")
+            }
+            isSaving = false
+        }
+    }
+}
+
 #Preview {
     TransactionListView()
+        .environmentObject(UserState())
 }

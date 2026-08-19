@@ -1,29 +1,26 @@
-//  Views/CustomerListView.swift
-//  BeautyClinic
-//
-
+// Views/CustomerListView.swift
 import SwiftUI
 
 struct CustomerListView: View {
+    @EnvironmentObject var userState: UserState
     @State private var customers: [Customer] = []
+    @State private var stores: [Store] = []
     @State private var isLoading = false
     @State private var searchTerm = ""
     @State private var showingAddSheet = false
-    @State private var errorMessage: String?
     
     var filteredCustomers: [Customer] {
         if searchTerm.isEmpty { return customers }
         let term = searchTerm.lowercased()
         return customers.filter {
-            $0.name.lowercased().contains(term) ||
-            $0.phone.contains(term)
+            $0.name.lowercased().contains(term) || $0.phone.contains(term)
         }
     }
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                SearchBar(text: $searchTerm)
+                SearchBar(text: $searchTerm, placeholder: "搜索客户...")
                     .padding(.horizontal)
                     .padding(.vertical, 8)
                 
@@ -47,7 +44,7 @@ struct CustomerListView: View {
                 } else {
                     List {
                         ForEach(filteredCustomers) { customer in
-                            NavigationLink(destination: CustomerDetailView(customer: customer)) {
+                            NavigationLink(destination: CustomerDetailView(customer: customer, stores: stores)) {
                                 CustomerRow(customer: customer)
                             }
                         }
@@ -64,31 +61,38 @@ struct CustomerListView: View {
                 }
             }
             .sheet(isPresented: $showingAddSheet) {
-                CustomerEditView(mode: .create) { newCustomer in
+                CustomerEditView(mode: .create, stores: stores) { newCustomer in
                     customers.insert(newCustomer, at: 0)
                 }
             }
-            .task { await loadCustomers() }
-            .refreshable { await loadCustomers() }
+            .task { await loadData() }
+            .refreshable { await loadData() }
         }
     }
     
-    private func loadCustomers() async {
+    private func loadData() async {
         isLoading = true
         defer { isLoading = false }
         
         do {
-            let result: [Customer] = try await supabase
+            async let customersTask: [Customer] = supabase
                 .from("customers")
                 .select()
                 .order("created_at", ascending: false)
                 .execute()
                 .value
             
-            customers = result
+            async let storesTask: [Store] = supabase
+                .from("stores")
+                .select()
+                .execute()
+                .value
+            
+            let (c, s) = try await (customersTask, storesTask)
+            customers = c
+            stores = s
         } catch {
-            errorMessage = "加载失败: \(error.localizedDescription)"
-            print("Error loading customers: \(error)")
+            print("Error loading data: \(error)")
         }
     }
 }
@@ -98,7 +102,17 @@ struct CustomerRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(name: customer.name, size: 44)
+            if let photoUrl = customer.photoUrl {
+                AsyncImage(url: URL(string: photoUrl)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    AvatarView(name: customer.name, size: 44)
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(Circle())
+            } else {
+                AvatarView(name: customer.name, size: 44)
+            }
             
             VStack(alignment: .leading, spacing: 3) {
                 Text(customer.name)
@@ -124,33 +138,7 @@ struct CustomerRow: View {
     }
 }
 
-struct AvatarView: View {
-    let name: String
-    var size: CGFloat = 40
-    
-    private var initial: String {
-        let first = name.prefix(1)
-        return String(first)
-    }
-    
-    private var bgColor: Color {
-        let colors: [Color] = [.blue, .green, .orange, .purple, .pink, .teal, .indigo]
-        let hash = name.utf8.reduce(0) { $0 + Int($1) }
-        return colors[hash % colors.count]
-    }
-    
-    var body: some View {
-        Circle()
-            .fill(bgColor.opacity(0.15))
-            .frame(width: size, height: size)
-            .overlay(
-                Text(initial)
-                    .font(.system(size: size * 0.4, weight: .semibold))
-                    .foregroundColor(bgColor)
-            )
-    }
-}
-
 #Preview {
     CustomerListView()
+        .environmentObject(UserState())
 }

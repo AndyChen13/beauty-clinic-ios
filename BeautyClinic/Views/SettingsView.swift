@@ -1,35 +1,44 @@
-//  Views/SettingsView.swift
-//  BeautyClinic
-//
-
+// Views/SettingsView.swift
 import SwiftUI
-import Supabase
 
 struct SettingsView: View {
+    @EnvironmentObject var userState: UserState
     @State private var showLogoutAlert = false
-    @State private var userName = "管理员"
-    @State private var userEmail = ""
-    @State private var isLoading = false
     
     var body: some View {
         NavigationStack {
             Form {
-                // Profile Section
                 Section {
                     HStack(spacing: 16) {
-                        AvatarView(name: userName, size: 60)
+                        if let avatarUrl = userState.currentUser?.avatarUrl,
+                           let url = URL(string: avatarUrl) {
+                            AsyncImage(url: url) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                AvatarView(name: userName, size: 60)
+                            }
+                            .frame(width: 60, height: 60)
+                            .clipShape(Circle())
+                        } else {
+                            AvatarView(name: userName, size: 60)
+                        }
+                        
                         VStack(alignment: .leading, spacing: 4) {
                             Text(userName)
                                 .font(.headline)
-                            Text("超级管理员")
+                            Text(roleDisplay)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                            if let storeId = userState.currentUser?.storeId {
+                                Text("门店ID: \(storeId.uuidString.prefix(8))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
                     .padding(.vertical, 4)
                 }
                 
-                // App Info
                 Section("应用信息") {
                     HStack {
                         Text("版本")
@@ -45,14 +54,12 @@ struct SettingsView: View {
                     }
                 }
                 
-                // About
                 Section("关于") {
                     NavigationLink("功能介绍") {
                         AboutView()
                     }
                 }
                 
-                // Logout
                 Section {
                     Button(role: .destructive) {
                         showLogoutAlert = true
@@ -77,13 +84,16 @@ struct SettingsView: View {
         }
     }
     
+    private var userName: String {
+        userState.currentUser?.name ?? "用户"
+    }
+    
+    private var roleDisplay: String {
+        userState.currentUser?.role.displayName ?? "员工"
+    }
+    
     private func logout() async {
-        do {
-            try await supabase.auth.signOut()
-            // App will detect session change and show login
-        } catch {
-            print("Logout error: \(error)")
-        }
+        await userState.signOut()
     }
 }
 
@@ -123,26 +133,7 @@ struct AboutView: View {
     }
 }
 
-struct InfoBlock: View {
-    let title: String
-    let content: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.headline)
-            Text(content)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineSpacing(4)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(UIColor.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-    }
-}
-
 #Preview {
     SettingsView()
+        .environmentObject(UserState())
 }

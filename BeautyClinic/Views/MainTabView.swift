@@ -1,10 +1,8 @@
-//  Views/MainTabView.swift
-//  BeautyClinic
-//
-
+// Views/MainTabView.swift
 import SwiftUI
 
 struct MainTabView: View {
+    @EnvironmentObject var userState: UserState
     @State private var selectedTab = 0
     
     var body: some View {
@@ -39,9 +37,11 @@ struct MainTabView: View {
                 }
                 .tag(4)
         }
+        .environmentObject(userState)
     }
 }
 
 #Preview {
     MainTabView()
+        .environmentObject(UserState())
 }

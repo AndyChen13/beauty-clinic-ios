@@ -1,7 +1,4 @@
-//  Models/Customer.swift
-//  BeautyClinic
-//
-
+// Models/Customer.swift
 import Foundation
 
 struct Customer: Codable, Identifiable, Hashable, Sendable {
@@ -12,7 +9,9 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     let birthdate: Date?
     let medicalHistory: String?
     let preferences: [String: String]?
+    let photoUrl: String?
     let associatedStoreId: UUID?
+    let createdBy: UUID?
     let lastVisit: Date?
     let createdAt: Date?
     let updatedAt: Date?
@@ -21,7 +20,9 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         case id, phone, name, gender, birthdate
         case medicalHistory = "medical_history"
         case preferences
+        case photoUrl = "photo_url"
         case associatedStoreId = "associated_store_id"
+        case createdBy = "created_by"
         case lastVisit = "last_visit"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -49,7 +50,6 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-// For creating new customers
 struct CustomerInsert: Codable, Sendable {
     let phone: String
     let name: String
@@ -64,5 +64,41 @@ struct CustomerInsert: Codable, Sendable {
         case medicalHistory = "medical_history"
         case preferences
         case associatedStoreId = "associated_store_id"
+    }
+}
+
+struct CustomerPhoto: Codable, Identifiable, Hashable, Sendable {
+    let id: UUID
+    let customerId: UUID
+    let photoUrl: String
+    let photoType: PhotoType
+    let notes: String?
+    let uploadedBy: UUID?
+    let createdAt: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case customerId = "customer_id"
+        case photoUrl = "photo_url"
+        case photoType = "photo_type"
+        case notes
+        case uploadedBy = "uploaded_by"
+        case createdAt = "created_at"
+    }
+}
+
+enum PhotoType: String, Codable, Sendable, CaseIterable {
+    case profile = "profile"
+    case before = "before"
+    case after = "after"
+    case progress = "progress"
+    
+    var displayName: String {
+        switch self {
+        case .profile: return "头像"
+        case .before: return "治疗前"
+        case .after: return "治疗后"
+        case .progress: return "进度照"
+        }
     }
 }

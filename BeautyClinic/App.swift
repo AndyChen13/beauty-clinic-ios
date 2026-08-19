@@ -1,14 +1,8 @@
-//  App.swift
-//  BeautyClinic
-//
-//  Created by Andy Chen on 2026-08-19.
-//
-
+// App.swift
 import SwiftUI
 import Supabase
 
 // MARK: - Supabase Configuration
-// Replace with your actual Supabase project credentials
 private let supabaseURL = URL(string: "https://ugwhgxtutochaodgrrqn.supabase.co")!
 private let supabaseKey = "sb_publishable_a0iYjlquj72R2J06tZwzGA_1n1Cy_lv"
 
@@ -17,11 +11,48 @@ let supabase = SupabaseClient(
     supabaseKey: supabaseKey
 )
 
+// MARK: - Global User State
+@MainActor
+class UserState: ObservableObject {
+    @Published var currentUser: User?
+    @Published var isLoading = true
+    
+    var isAdmin: Bool { currentUser?.isAdmin ?? false }
+    var storeId: UUID? { currentUser?.storeId }
+    
+    func loadUser() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let user = try await supabase.auth.user()
+            let users: [User] = try await supabase
+                .from("users")
+                .select()
+                .eq("id", value: user.id)
+                .execute()
+                .value
+            currentUser = users.first
+        } catch {
+            print("Failed to load user: \(error)")
+            currentUser = nil
+        }
+    }
+    
+    func signOut() async {
+        try? await supabase.auth.signOut()
+        currentUser = nil
+    }
+}
+
 @main
 struct BeautyClinicApp: App {
+    @StateObject private var userState = UserState()
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(userState)
         }
     }
 }

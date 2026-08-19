@@ -1,7 +1,4 @@
-//  Models/Store.swift
-//  BeautyClinic
-//
-
+// Models/Store.swift
 import Foundation
 import SwiftUI
 
@@ -11,13 +8,13 @@ struct Store: Codable, Identifiable, Hashable, Sendable {
     let address: String?
     let phone: String?
     let status: StoreStatus
-    let managerUserId: UUID?
+    let managerId: UUID?
     let createdAt: Date?
     let updatedAt: Date?
     
     enum CodingKeys: String, CodingKey {
         case id, name, address, phone, status
-        case managerUserId = "manager_user_id"
+        case managerId = "manager_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -50,10 +47,10 @@ struct StoreInsert: Codable, Sendable {
     let address: String?
     let phone: String?
     let status: StoreStatus
-    let managerUserId: UUID?
+    let managerId: UUID?
     
     enum CodingKeys: String, CodingKey {
         case name, address, phone, status
-        case managerUserId = "manager_user_id"
+        case managerId = "manager_id"
     }
 }
