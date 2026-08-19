@@ -125,7 +125,7 @@ struct LoginView: View {
                 )
                 onLoginSuccess()
             } catch {
-                errorMessage = "登录失败: 邮箱或密码错误"
+                errorMessage = "登录失败: \(error.localizedDescription)"
                 showError = true
             }
             isLoggingIn = false
