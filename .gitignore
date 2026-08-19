@@ -1,0 +1,20 @@
+*.xcodeproj
+*.xcworkspace
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+
+# Supabase config (contains secrets)
+.supabase/
+supabase/.env
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
