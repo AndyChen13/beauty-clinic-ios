@@ -8,19 +8,11 @@ import Supabase
 struct LoginView: View {
     let onLoginSuccess: () -> Void
     
-    @State private var phoneNumber = ""
-    @State private var verificationCode = ""
-    @State private var isSendingCode = false
-    @State private var isVerifying = false
-    @State private var showCodeInput = false
+    @State private var email = ""
+    @State private var password = ""
+    @State private var isLoggingIn = false
     @State private var errorMessage: String?
     @State private var showError = false
-    @State private var countdown = 0
-    
-    private var formattedPhone: String {
-        let digits = phoneNumber.filter { $0.isNumber }
-        return "+86" + digits
-    }
     
     var body: some View {
         NavigationStack {
@@ -46,67 +38,32 @@ struct LoginView: View {
                 
                 // Input Fields
                 VStack(alignment: .leading, spacing: 16) {
-                    // Phone
+                    // Email
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("手机号")
+                        Text("邮箱")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         
-                        HStack(spacing: 8) {
-                            Text("+86")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                                .padding(.leading, 12)
-                            
-                            TextField("请输入手机号", text: $phoneNumber)
-                                .keyboardType(.phonePad)
-                                .textInputAutocapitalization(.never)
-                                .disableAutocorrection(true)
-                                .onChange(of: phoneNumber) { _, newValue in
-                                    phoneNumber = String(newValue.filter { $0.isNumber }.prefix(11))
-                                }
-                            
-                            if !showCodeInput {
-                                Button(action: sendCode) {
-                                    Text(countdown > 0 ? "\(countdown)s" : "获取验证码")
-                                        .font(.subheadline.weight(.medium))
-                                }
-                                .disabled(phoneNumber.count < 11 || isSendingCode || countdown > 0)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.trailing, 12)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        TextField("请输入邮箱", text: $email)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                            .padding(12)
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     
-                    // Verification Code
-                    if showCodeInput {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("验证码")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            
-                            TextField("请输入6位验证码", text: $verificationCode)
-                                .keyboardType(.numberPad)
-                                .textInputAutocapitalization(.never)
-                                .padding(12)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .onChange(of: verificationCode) { _, newValue in
-                                    verificationCode = String(newValue.filter { $0.isNumber }.prefix(6))
-                                }
-                        }
+                    // Password
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("密码")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                         
-                        HStack {
-                            Spacer()
-                            Button(action: resendCode) {
-                                Text(countdown > 0 ? "\(countdown)秒后重新发送" : "重新发送验证码")
-                                    .font(.caption)
-                                    .foregroundStyle(countdown > 0 ? .secondary : Color.accentColor)
-                            }
-                            .disabled(countdown > 0)
-                        }
+                        SecureField("请输入密码", text: $password)
+                            .textInputAutocapitalization(.never)
+                            .padding(12)
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
                 
@@ -119,13 +76,13 @@ struct LoginView: View {
                 }
                 
                 // Login Button
-                Button(action: verifyAndLogin) {
+                Button(action: login) {
                     HStack {
-                        if isVerifying {
+                        if isLoggingIn {
                             ProgressView()
                                 .tint(.white)
                         }
-                        Text(showCodeInput ? "登 录" : "下一步")
+                        Text("登 录")
                             .font(.headline.weight(.semibold))
                     }
                     .foregroundColor(.white)
@@ -150,70 +107,28 @@ struct LoginView: View {
     }
     
     private var isButtonEnabled: Bool {
-        if showCodeInput {
-            return verificationCode.count == 6 && !isVerifying
-        } else {
-            return phoneNumber.count == 11 && !isSendingCode
-        }
+        !email.isEmpty && !password.isEmpty && !isLoggingIn
     }
     
-    private func sendCode() {
-        isSendingCode = true
+    private func login() {
+        guard !email.isEmpty, !password.isEmpty else { return }
+        
+        isLoggingIn = true
         errorMessage = nil
         showError = false
         
         Task {
             do {
-                try await supabase.auth.signInWithOTP(phone: formattedPhone)
-                showCodeInput = true
-                startCountdown()
-            } catch {
-                errorMessage = "发送失败: \(error.localizedDescription)"
-                showError = true
-            }
-            isSendingCode = false
-        }
-    }
-    
-    private func resendCode() {
-        sendCode()
-    }
-    
-    private func verifyAndLogin() {
-        if !showCodeInput {
-            sendCode()
-            return
-        }
-        
-        guard verificationCode.count == 6 else { return }
-        
-        isVerifying = true
-        errorMessage = nil
-        showError = false
-        
-        Task {
-            do {
-                try await supabase.auth.verifyOTP(
-                    phone: formattedPhone,
-                    token: verificationCode,
-                    type: .sms
+                try await supabase.auth.signIn(
+                    email: email,
+                    password: password
                 )
                 onLoginSuccess()
             } catch {
-                errorMessage = "验证失败: 验证码错误或已过期"
+                errorMessage = "登录失败: 邮箱或密码错误"
                 showError = true
             }
-            isVerifying = false
-        }
-    }
-    
-    private func startCountdown() {
-        countdown = 60
-        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-            countdown -= 1
-            if countdown <= 0 {
-                timer.invalidate()
-            }
+            isLoggingIn = false
         }
     }
 }
