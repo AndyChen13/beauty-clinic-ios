@@ -11,8 +11,8 @@ import Supabase
 struct BeautyClinicApp: App {
     // Supabase client - configure with your project credentials
     private let client = SupabaseClient(
-        url: ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "https://YOUR_PROJECT.supabase.co",
-        apiKey: ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] ?? "YOUR_ANON_KEY"
+        supabaseURL: URL(string: ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "https://YOUR_PROJECT.supabase.co")!,
+        supabaseKey: ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] ?? "YOUR_ANON_KEY"
     )
     
     var body: some Scene {
