@@ -4,7 +4,7 @@ import Supabase
 
 // MARK: - Supabase Configuration
 private let supabaseURL = URL(string: "https://ugwhgxtutochaodgrrqn.supabase.co")!
-private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnd2hneHR1dG9jaGFvZGdycnFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNTk3MzIsImV4cCI6MjEwMjczNTczMn0.2kfp-9EwutEyysxIcpINo1eApQn44oTA29qsbETEs7g""sb_publishable_a0iYjlquj72R2J06tZwzGA_1n1Cy_lv"
+private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnd2hneHR1dG9jaGFvZGdycnFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNTk3MzIsImV4cCI6MjEwMjczNTczMn0.2kfp-9EwutEyysxIcpINo1eApQn44oTA29qsbETEs7g"
 
 let supabase = SupabaseClient(
     supabaseURL: supabaseURL,
