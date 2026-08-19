@@ -354,7 +354,12 @@ struct TransactionRecordView: View {
             do {
                 // Get customer to find store
                 let customer = customers.first { $0.id == customerId }
-                let storeId = customer?.associatedStoreId ?? UUID()
+                guard let storeId = customer?.associatedStoreId else {
+                    errorMessage = "该客户未关联门店，请先为客户分配门店"
+                    showError = true
+                    isSaving = false
+                    return
+                }
                 
                 // Calculate estimated completion date
                 let calendar = Calendar.current
@@ -494,7 +499,7 @@ struct DeliveryRecordView: View {
                 _ = try await supabase
                     .from("transactions")
                     .update([
-                        "completed_sessions": String(nextSession),
+                        "completed_sessions": nextSession,
                         "first_delivery_date": existingDeliveries.isEmpty ? ISO8601DateFormatter().string(from: Date()) : nil,
                         "status": nextSession >= transaction.totalSessions ? "completed" : "in_progress"
                     ])

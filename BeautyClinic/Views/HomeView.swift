@@ -48,7 +48,7 @@ struct HomeView: View {
             
             async let customersCountTask = supabase
                 .from("customers")
-                .select("*", head: true)
+                .select("*", head: true, count: .exact)
                 .execute()
             
             async let todayTransTask: [Transaction] = supabase
@@ -67,7 +67,7 @@ struct HomeView: View {
             
             async let pendingTask = supabase
                 .from("transactions")
-                .select("*", head: true)
+                .select("*", head: true, count: .exact)
                 .in("status", value: ["pending", "confirmed", "in_progress"])
                 .execute()
             
@@ -83,7 +83,7 @@ struct HomeView: View {
                 .execute()
                 .value
             
-            let (_, tTrans, mTrans, _, recent) = try await (
+            let (customersResp, tTrans, mTrans, pendingResp, recent) = try await (
                 customersCountTask,
                 todayTransTask,
                 monthlyTransTask,
@@ -92,10 +92,10 @@ struct HomeView: View {
             )
             
             await MainActor.run {
-                customersCount = 0 // Will be set from count
+                customersCount = customersResp.count ?? 0
                 todayTransactions = tTrans.count
                 monthlyRevenue = mTrans.reduce(0) { $0 + $1.amount }
-                pendingDeliveries = 0 // Will be set from count
+                pendingDeliveries = pendingResp.count ?? 0
                 recentTransactions = recent
             }
         } catch {
