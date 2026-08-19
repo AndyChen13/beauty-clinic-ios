@@ -1,7 +1,5 @@
-// FilterBar.swift
-// BeautyClinic
-//
-// Created by Andy Chen on 2026-08-19.
+//  Views/Common/FilterBar.swift
+//  BeautyClinic
 //
 
 import SwiftUI

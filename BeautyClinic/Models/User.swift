@@ -1,40 +1,36 @@
-// User.swift
-// BeautyClinic
-//
-// Created by Andy Chen on 2026-08-19.
+//  Models/User.swift
+//  BeautyClinic
 //
 
 import Foundation
-import SwiftData
 
-@Model
-class User {
-    var id: UUID?
-    var phone: String
-    var name: String
-    var role: String // admin, manager, staff
-    var storeId: UUID?
+struct User: Codable, Identifiable, Hashable, Sendable {
+    let id: UUID
+    let phone: String
+    let name: String
+    let role: UserRole
+    let storeId: UUID?
+    let createdAt: Date?
+    let updatedAt: Date?
     
-    init(id: UUID? = nil, phone: String, name: String,
-         role: String = "staff", storeId: UUID? = nil) {
-        self.id = id
-        self.phone = phone
-        self.name = name
-        self.role = role
-        self.storeId = storeId
+    enum CodingKeys: String, CodingKey {
+        case id, phone, name, role
+        case storeId = "store_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
+}
+
+enum UserRole: String, Codable, Sendable, CaseIterable {
+    case admin = "admin"
+    case manager = "manager"
+    case staff = "staff"
     
-    convenience init?(json: [String: Any]) {
-        guard let id = json["id"] as? UUID,
-              let phone = json["phone"] as? String,
-              let name = json["name"] as? String else { return nil }
-        
-        self.init(
-            id: id,
-            phone: phone,
-            name: name,
-            role: json["role"] as? String ?? "staff",
-            storeId: json["store_id"] as? UUID
-        )
+    var displayName: String {
+        switch self {
+        case .admin: return "超级管理员"
+        case .manager: return "门店经理"
+        case .staff: return "普通员工"
+        }
     }
 }

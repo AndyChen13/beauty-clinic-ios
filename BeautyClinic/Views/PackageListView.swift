@@ -1,72 +1,277 @@
+//  Views/PackageListView.swift
+//  BeautyClinic
+//
+
 import SwiftUI
 
 struct PackageListView: View {
-    @Environment(\.supabaseClient) private var supabaseClient
-    
-    @State private var packages: [Package] = []
+    @State private var packages: [ServicePackage] = []
     @State private var isLoading = false
+    @State private var showingAddSheet = false
+    @State private var selectedCategory: PackageCategory? = nil
+    
+    var filteredPackages: [ServicePackage] {
+        guard let category = selectedCategory else { return packages }
+        return packages.filter { $0.category == category }
+    }
     
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(packages, id: \.id) { package in
-                    PackageRow(package: package)
-                        .onTapGesture {
-                            // Navigate to package detail
+            VStack(spacing: 0) {
+                // Category Filter
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        FilterChip(
+                            title: "全部",
+                            isSelected: selectedCategory == nil
+                        ) {
+                            selectedCategory = nil
                         }
+                        
+                        ForEach(PackageCategory.allCases, id: \.self) { category in
+                            FilterChip(
+                                title: category.displayName,
+                                isSelected: selectedCategory == category,
+                                color: category.color
+                            ) {
+                                selectedCategory = category
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+                
+                if isLoading && packages.isEmpty {
+                    List {
+                        ForEach(0..<5) { _ in
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(UIColor.secondarySystemBackground))
+                                .frame(height: 80)
+                                .shimmering()
+                        }
+                    }
+                    .listStyle(.plain)
+                } else if filteredPackages.isEmpty {
+                    EmptyStateView(
+                        icon: "sparkles",
+                        title: selectedCategory == nil ? "暂无套餐" : "该分类暂无套餐",
+                        subtitle: "点击右上角添加套餐"
+                    )
+                    .padding(.top, 60)
+                } else {
+                    List {
+                        ForEach(filteredPackages) { package in
+                            PackageRow(package: package)
+                        }
+                    }
+                    .listStyle(.plain)
                 }
             }
             .navigationTitle("服务套餐")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: addPackage) {
+                    Button(action: { showingAddSheet = true }) {
                         Image(systemName: "plus")
                     }
                 }
             }
-            .onAppear { loadPackages() }
-        }
-    }
-    
-    private func loadPackages() {
-        isLoading = true
-        Task {
-            do {
-                let data = try await supabaseClient?.from("packages").select()
-                packages = data?.compactMap { Package(json: $0) } ?? []
-            } catch {
-                print("Error loading packages: \(error)")
+            .sheet(isPresented: $showingAddSheet) {
+                PackageEditView(mode: .create) { newPackage in
+                    packages.append(newPackage)
+                }
             }
-            isLoading = false
+            .task { await loadPackages() }
+            .refreshable { await loadPackages() }
         }
     }
     
-    private func addPackage() {
-        // TODO: Present add package sheet
-        print("Add package")
+    private func loadPackages() async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let result: [ServicePackage] = try await supabase
+                .from("packages")
+                .select()
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+            packages = result
+        } catch {
+            print("Error loading packages: \(error)")
+        }
     }
 }
 
 struct PackageRow: View {
-    let package: Package
+    let package: ServicePackage
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Circle()
-                .fill(package.categoryColor.opacity(0.2))
+                .fill(package.category.color.opacity(0.15))
                 .frame(width: 48, height: 48)
+                .overlay(
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 18))
+                        .foregroundColor(package.category.color)
+                )
+            
             VStack(alignment: .leading, spacing: 4) {
                 Text(package.name)
-                    .font(.headline)
-                Text("\(package.categoryDisplay) • \(package.durationMinutes)分钟")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text("¥\(String(format: "%.2f", package.price))")
-                    .font(.headline)
-                    .foregroundColor(.blue)
+                    .font(.subheadline.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(package.category.displayName)
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(package.category.color.opacity(0.12))
+                        .foregroundColor(package.category.color)
+                        .clipShape(Capsule())
+                    Text("\(package.durationMinutes)分钟")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if let desc = package.description, !desc.isEmpty {
+                    Text(desc)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            
+            Spacer()
+            
+            Text("¥\(String(format: "%.0f", package.price))")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.accentColor)
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+struct FilterChip: View {
+    let title: String
+    let isSelected: Bool
+    var color: Color = .accentColor
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(isSelected ? color.opacity(0.15) : Color(UIColor.secondarySystemBackground))
+                .foregroundColor(isSelected ? color : .primary)
+                .clipShape(Capsule())
+        }
+    }
+}
+
+enum PackageEditMode {
+    case create
+    case edit(ServicePackage)
+}
+
+struct PackageEditView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let mode: PackageEditMode
+    let onSave: (ServicePackage) -> Void
+    
+    @State private var name = ""
+    @State private var description = ""
+    @State private var category = PackageCategory.face
+    @State private var price = ""
+    @State private var duration = "60"
+    @State private var isSaving = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("基本信息") {
+                    TextField("套餐名称 *", text: $name)
+                    TextField("描述", text: $description, axis: .vertical)
+                        .lineLimit(2...4)
+                    
+                    Picker("分类", selection: $category) {
+                        ForEach(PackageCategory.allCases, id: \.self) { cat in
+                            Text(cat.displayName).tag(cat)
+                        }
+                    }
+                }
+                
+                Section("定价") {
+                    TextField("价格 (¥) *", text: $price)
+                        .keyboardType(.decimalPad)
+                    TextField("时长 (分钟) *", text: $duration)
+                        .keyboardType(.numberPad)
+                }
+            }
+            .navigationTitle("添加套餐")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: savePackage) {
+                        if isSaving {
+                            ProgressView().scaleEffect(0.8)
+                        } else {
+                            Text("保存")
+                        }
+                    }
+                    .disabled(name.isEmpty || price.isEmpty || isSaving)
+                }
+            }
+            .alert("保存失败", isPresented: $showError) {
+                Button("确定", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
             }
         }
-        .padding(.vertical, 8)
+    }
+    
+    private func savePackage() {
+        guard let priceValue = Double(price),
+              let durationValue = Int(duration),
+              !name.isEmpty else { return }
+        
+        isSaving = true
+        
+        Task {
+            do {
+                let packageData = ServicePackageInsert(
+                    name: name,
+                    description: description.isEmpty ? nil : description,
+                    category: category,
+                    price: priceValue,
+                    durationMinutes: durationValue,
+                    imageUrl: nil,
+                    trainingMaterials: nil
+                )
+                
+                let created: ServicePackage = try await supabase
+                    .from("packages")
+                    .insert(packageData)
+                    .select()
+                    .single()
+                    .execute()
+                    .value
+                
+                onSave(created)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+            isSaving = false
+        }
     }
 }
 

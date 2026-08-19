@@ -1,120 +1,223 @@
+//  Views/LoginView.swift
+//  BeautyClinic
+//
+
 import SwiftUI
+import Supabase
 
 struct LoginView: View {
-    @Environment(\.supabaseClient) private var supabaseClient
+    let onLoginSuccess: () -> Void
     
     @State private var phoneNumber = ""
     @State private var verificationCode = ""
     @State private var isSendingCode = false
     @State private var isVerifying = false
     @State private var showCodeInput = false
+    @State private var errorMessage: String?
+    @State private var showError = false
+    @State private var countdown = 0
+    
+    private var formattedPhone: String {
+        let digits = phoneNumber.filter { $0.isNumber }
+        return "+86" + digits
+    }
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 Spacer()
                 
+                // Logo
                 VStack(spacing: 16) {
                     Circle()
-                        .fill(Color.blue.opacity(0.2))
-                        .frame(width: 80, height: 80)
+                        .fill(Color.accentColor.opacity(0.15))
+                        .frame(width: 88, height: 88)
+                        .overlay(
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 36))
+                                .foregroundColor(.accentColor)
+                        )
                     Text("Beauty Clinic")
                         .font(.largeTitle.weight(.bold))
-                        .foregroundColor(.blue)
-                    Text("内部管理系统")
+                    Text("医美内部管理系统")
                         .font(.headline)
                         .foregroundStyle(.secondary)
                 }
                 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("手机号")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    
-                    HStack {
-                        TextField("", text: $phoneNumber)
-                            .keyboardType(.phonePad)
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                        if !showCodeInput {
-                            Button(action: sendVerificationCode) {
-                                Text(isSendingCode ? "发送中..." : "发送验证码")
-                                    .foregroundColor(.blue)
+                // Input Fields
+                VStack(alignment: .leading, spacing: 16) {
+                    // Phone
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("手机号")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        HStack(spacing: 8) {
+                            Text("+86")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 12)
+                            
+                            TextField("请输入手机号", text: $phoneNumber)
+                                .keyboardType(.phonePad)
+                                .textInputAutocapitalization(.never)
+                                .disableAutocorrection(true)
+                                .onChange(of: phoneNumber) { _, newValue in
+                                    phoneNumber = String(newValue.filter { $0.isNumber }.prefix(11))
+                                }
+                            
+                            if !showCodeInput {
+                                Button(action: sendCode) {
+                                    Text(countdown > 0 ? "\(countdown)s" : "获取验证码")
+                                        .font(.subheadline.weight(.medium))
+                                }
+                                .disabled(phoneNumber.count < 11 || isSendingCode || countdown > 0)
                             }
-                            .disabled(phoneNumber.count < 11 || isSendingCode)
                         }
+                        .padding(.vertical, 4)
+                        .padding(.trailing, 12)
+                        .background(Color(UIColor.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .padding(12)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(8)
                     
+                    // Verification Code
                     if showCodeInput {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text("验证码")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                             
-                            TextField("", text: $verificationCode)
+                            TextField("请输入6位验证码", text: $verificationCode)
                                 .keyboardType(.numberPad)
                                 .textInputAutocapitalization(.never)
-                                .disableAutocorrection(true)
                                 .padding(12)
                                 .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(8)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .onChange(of: verificationCode) { _, newValue in
+                                    verificationCode = String(newValue.filter { $0.isNumber }.prefix(6))
+                                }
+                        }
+                        
+                        HStack {
+                            Spacer()
+                            Button(action: resendCode) {
+                                Text(countdown > 0 ? "\(countdown)秒后重新发送" : "重新发送验证码")
+                                    .font(.caption)
+                                    .foregroundStyle(countdown > 0 ? .secondary : Color.accentColor)
+                            }
+                            .disabled(countdown > 0)
                         }
                     }
                 }
                 
-                Button(action: verifyAndLogin) {
-                    Text(showCodeInput ? "登录" : "输入手机号")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: .infinity)
+                // Error
+                if showError, let error = errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
                 }
-                .background(Color.blue)
-                .cornerRadius(12)
+                
+                // Login Button
+                Button(action: verifyAndLogin) {
+                    HStack {
+                        if isVerifying {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                        Text(showCodeInput ? "登 录" : "下一步")
+                            .font(.headline.weight(.semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.accentColor)
+                            .opacity(isButtonEnabled ? 1.0 : 0.5)
+                    )
+                }
+                .disabled(!isButtonEnabled)
                 
                 Spacer()
+                
+                Text("仅授权员工可使用")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
-            .padding()
+            .padding(.horizontal, 24)
         }
     }
     
-    private func sendVerificationCode() {
+    private var isButtonEnabled: Bool {
+        if showCodeInput {
+            return verificationCode.count == 6 && !isVerifying
+        } else {
+            return phoneNumber.count == 11 && !isSendingCode
+        }
+    }
+    
+    private func sendCode() {
         isSendingCode = true
+        errorMessage = nil
+        showError = false
+        
         Task {
             do {
-                _ = try await supabaseClient?.auth.signInWithOTP(
-                    phoneNumber: "+86" + phoneNumber.dropFirst(3)
-                )
+                try await supabase.auth.signInWithOTP(phone: formattedPhone)
                 showCodeInput = true
+                startCountdown()
             } catch {
-                print("Error sending OTP: \(error)")
+                errorMessage = "发送失败: \(error.localizedDescription)"
+                showError = true
             }
             isSendingCode = false
         }
     }
     
+    private func resendCode() {
+        sendCode()
+    }
+    
     private func verifyAndLogin() {
-        guard !verificationCode.isEmpty else { return }
+        if !showCodeInput {
+            sendCode()
+            return
+        }
+        
+        guard verificationCode.count == 6 else { return }
         
         isVerifying = true
+        errorMessage = nil
+        showError = false
+        
         Task {
             do {
-                _ = try await supabaseClient?.auth.verifyOTP(
-                    phoneNumber: "+86" + phoneNumber.dropFirst(3),
-                    token: verificationCode
+                try await supabase.auth.verifyOTP(
+                    phone: formattedPhone,
+                    token: verificationCode,
+                    type: .sms
                 )
-                // Login successful - navigate to main app
+                onLoginSuccess()
             } catch {
-                print("Error verifying OTP: \(error)")
+                errorMessage = "验证失败: 验证码错误或已过期"
+                showError = true
             }
             isVerifying = false
+        }
+    }
+    
+    private func startCountdown() {
+        countdown = 60
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
+            countdown -= 1
+            if countdown <= 0 {
+                timer.invalidate()
+            }
         }
     }
 }
 
 #Preview {
-    LoginView()
+    LoginView(onLoginSuccess: {})
 }

@@ -1,49 +1,68 @@
-import Foundation
-import SwiftData
+//  Models/Customer.swift
+//  BeautyClinic
+//
 
-@Model
-class Customer {
-    var id: UUID?
-    var phone: String
-    var name: String
-    var gender: String?
-    var birthdate: Date?
-    var medical_history: String?
-    @Attribute(.externalStorage) var preferences: Data?
+import Foundation
+
+struct Customer: Codable, Identifiable, Hashable, Sendable {
+    let id: UUID
+    let phone: String
+    let name: String
+    let gender: String?
+    let birthdate: Date?
+    let medicalHistory: String?
+    let preferences: [String: String]?
+    let associatedStoreId: UUID?
+    let lastVisit: Date?
+    let createdAt: Date?
+    let updatedAt: Date?
     
-    init(phone: String, name: String, gender: String? = nil, 
-         birthdate: Date? = nil, medical_history: String? = nil,
-         preferences: [String: Any]? = nil) {
-        self.id = UUID()
-        self.phone = phone
-        self.name = name
-        self.gender = gender
-        self.birthdate = birthdate
-        self.medical_history = medical_history
-        if let prefs = preferences {
-            self.preferences = try? JSONSerialization.data(withJSONObject: prefs)
+    enum CodingKeys: String, CodingKey {
+        case id, phone, name, gender, birthdate
+        case medicalHistory = "medical_history"
+        case preferences
+        case associatedStoreId = "associated_store_id"
+        case lastVisit = "last_visit"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+    
+    var genderDisplay: String {
+        switch gender {
+        case "male": return "男"
+        case "female": return "女"
+        case "other": return "其他"
+        default: return "未知"
         }
     }
     
-    // Computed properties for SwiftUI
-    var preferencesString: String {
-        guard let data = preferences,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "" }
-        return json.map { "\($0): \($1)" }.joined(separator: "\n")
+    var age: Int? {
+        guard let birthdate = birthdate else { return nil }
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year], from: birthdate, to: Date())
+        return components.year
     }
     
-    // Initializer for Supabase results
-    convenience init?(json: [String: Any]) {
-        guard let phone = json["phone"] as? String,
-              let name = json["name"] as? String else { return nil }
-        
-        self.init(
-            phone: phone,
-            name: name,
-            gender: json["gender"] as? String,
-            birthdate: json["birthdate"] as? Date,
-            medical_history: json["medical_history"] as? String,
-            preferences: json["preferences"] as? [String: Any]
-        )
+    var preferencesString: String {
+        guard let prefs = preferences, !prefs.isEmpty else { return "无备注" }
+        return prefs.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
+    }
+}
+
+// For creating new customers
+struct CustomerInsert: Codable, Sendable {
+    let phone: String
+    let name: String
+    let gender: String?
+    let birthdate: Date?
+    let medicalHistory: String?
+    let preferences: [String: String]?
+    let associatedStoreId: UUID?
+    
+    enum CodingKeys: String, CodingKey {
+        case phone, name, gender, birthdate
+        case medicalHistory = "medical_history"
+        case preferences
+        case associatedStoreId = "associated_store_id"
     }
 }

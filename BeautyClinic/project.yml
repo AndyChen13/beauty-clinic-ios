@@ -1,0 +1,44 @@
+name: BeautyClinic
+targets:
+  BeautyClinic:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: .
+        excludes:
+          - "*.md"
+          - "*.py"
+          - "*.sh"
+          - "*.yml"
+          - "*.txt"
+          - "PROJECT_INFO.md"
+          - "README.md"
+          - "generate_*.py"
+          - "create_*.sh"
+          - "BeautyClinic.xcodeproj"
+    resources:
+      - Assets.xcassets
+    settings:
+      base:
+        INFOPLIST_FILE: Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.andychen.BeautyClinic
+        PRODUCT_NAME: BeautyClinic
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+    dependencies:
+      - package: Supabase
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    from: 2.0.0

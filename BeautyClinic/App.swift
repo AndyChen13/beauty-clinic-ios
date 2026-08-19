@@ -7,24 +7,21 @@
 import SwiftUI
 import Supabase
 
+// MARK: - Supabase Configuration
+// Replace with your actual Supabase project credentials
+private let supabaseURL = URL(string: "https://ugwhgxtutochaodgrrqn.supabase.co")!
+private let supabaseKey = "sb_publishable_a0iYjlquj72R2J06tZwzGA_1n1Cy_lv"
+
+let supabase = SupabaseClient(
+    supabaseURL: supabaseURL,
+    supabaseKey: supabaseKey
+)
+
 @main
 struct BeautyClinicApp: App {
-    // Supabase client - configure with your project credentials
-    private let client = SupabaseClient(
-        supabaseURL: URL(string: ProcessInfo.processInfo.environment["SUPABASE_URL"] ?? "https://YOUR_PROJECT.supabase.co")!,
-        supabaseKey: ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"] ?? "YOUR_ANON_KEY"
-    )
-    
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.supabaseClient, client)
         }
     }
-}
-
-// MARK: - Environment Objects
-
-private extension EnvironmentValues {
-    @Entry var supabaseClient: SupabaseClient?
 }

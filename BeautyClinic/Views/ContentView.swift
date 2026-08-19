@@ -1,27 +1,59 @@
+//  Views/ContentView.swift
+//  BeautyClinic
+//
+
 import SwiftUI
+import Supabase
 
 struct ContentView: View {
-    @Environment(\.supabaseClient) private var supabaseClient
     @State private var isAuthenticated = false
+    @State private var isChecking = true
     
     var body: some View {
         Group {
-            if isAuthenticated {
+            if isChecking {
+                SplashScreen()
+            } else if isAuthenticated {
                 MainTabView()
             } else {
-                LoginView()
-                    .onAppear { checkAuthentication() }
+                LoginView(onLoginSuccess: { isAuthenticated = true })
             }
         }
-        .onChange(of: supabaseClient?.session) { _, _ in
-            checkAuthentication()
-        }
+        .onAppear { checkAuth() }
     }
     
-    private func checkAuthentication() {
-        guard let client = supabaseClient,
-              client.session != nil else { return }
-        isAuthenticated = true
+    private func checkAuth() {
+        Task {
+            do {
+                let session = try await supabase.auth.session
+                isAuthenticated = !session.accessToken.isEmpty
+            } catch {
+                isAuthenticated = false
+            }
+            isChecking = false
+        }
+    }
+}
+
+struct SplashScreen: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Circle()
+                .fill(Color.accentColor.opacity(0.15))
+                .frame(width: 100, height: 100)
+                .overlay(
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 40))
+                        .foregroundColor(.accentColor)
+                )
+            Text("Beauty Clinic")
+                .font(.largeTitle.weight(.bold))
+            Text("内部管理系统")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            ProgressView()
+                .padding(.top, 20)
+        }
     }
 }
 

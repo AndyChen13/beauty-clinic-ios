@@ -1,37 +1,43 @@
+//  Views/MainTabView.swift
+//  BeautyClinic
+//
+
 import SwiftUI
 
 struct MainTabView: View {
+    @State private var selectedTab = 0
+    
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             HomeView()
                 .tabItem {
                     Label("首页", systemImage: "house.fill")
                 }
+                .tag(0)
             
             CustomerListView()
                 .tabItem {
-                    Label("客户管理", systemImage: "person.crop.circle")
+                    Label("客户", systemImage: "person.2.fill")
                 }
+                .tag(1)
             
             PackageListView()
                 .tabItem {
-                    Label("服务套餐", systemImage: "sparkles") // 使用 Sparkle 代替医美图标
+                    Label("套餐", systemImage: "sparkles")
                 }
+                .tag(2)
             
             StoreListView()
                 .tabItem {
-                    Label("门店管理", systemImage: "building.fill")
+                    Label("门店", systemImage: "building.2.fill")
                 }
+                .tag(3)
             
             TransactionListView()
                 .tabItem {
-                    Label("成交记录", systemImage: "card.fill")
+                    Label("成交", systemImage: "doc.text.fill")
                 }
-            
-            SettingsView()
-                .tabItem {
-                    Label("设置", systemImage: "gearshape")
-                }
+                .tag(4)
         }
     }
 }
