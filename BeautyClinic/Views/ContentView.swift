@@ -14,7 +14,12 @@ struct ContentView: View {
                 MainTabView()
                     .environmentObject(userState)
             } else {
-                LoginView(onLoginSuccess: { isAuthenticated = true })
+                LoginView(onLoginSuccess: {
+                    Task {
+                        await userState.loadUser()
+                        isAuthenticated = true
+                    }
+                })
             }
         }
         .onAppear { checkAuth() }
