@@ -499,7 +499,7 @@ struct DeliveryRecordView: View {
                 _ = try await supabase
                     .from("transactions")
                     .update([
-                        "completed_sessions": nextSession,
+                        "completed_sessions": String(nextSession),
                         "first_delivery_date": existingDeliveries.isEmpty ? ISO8601DateFormatter().string(from: Date()) : nil,
                         "status": nextSession >= transaction.totalSessions ? "completed" : "in_progress"
                     ])
