@@ -36,6 +36,12 @@ struct MainTabView: View {
                     Label("成交", systemImage: "doc.text.fill")
                 }
                 .tag(4)
+            
+            SettingsView()
+                .tabItem {
+                    Label("设置", systemImage: "gearshape.fill")
+                }
+                .tag(5)
         }
         .environmentObject(userState)
     }
