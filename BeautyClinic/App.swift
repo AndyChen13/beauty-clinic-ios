@@ -8,7 +8,12 @@ private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let supabase = SupabaseClient(
     supabaseURL: supabaseURL,
-    supabaseKey: supabaseKey
+    supabaseKey: supabaseKey,
+    options: .init(
+        auth: .init(
+            emitLocalSessionAsInitialSession: true
+        )
+    )
 )
 
 // MARK: - Global User State

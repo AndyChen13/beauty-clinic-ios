@@ -29,9 +29,11 @@ struct ContentView: View {
         Task {
             do {
                 let session = try await supabase.auth.session
-                if !session.accessToken.isEmpty {
+                if !session.accessToken.isEmpty && !session.isExpired {
                     await userState.loadUser()
                     isAuthenticated = true
+                } else {
+                    isAuthenticated = false
                 }
             } catch {
                 isAuthenticated = false
