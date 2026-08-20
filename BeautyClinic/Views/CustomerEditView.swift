@@ -148,9 +148,13 @@ struct CustomerEditView: View {
                     phone = customer.phone
                     gender = customer.gender ?? "female"
                     selectedStoreId = customer.associatedStoreId
-                    if let bd = customer.birthdate {
-                        birthdate = bd
-                        hasBirthdate = true
+                    if let bdString = customer.birthdate {
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "yyyy-MM-dd"
+                        if let bd = formatter.date(from: bdString) {
+                            birthdate = bd
+                            hasBirthdate = true
+                        }
                     }
                     medicalHistory = customer.medicalHistory ?? ""
                     if let prefs = customer.preferences {
@@ -189,7 +193,7 @@ struct CustomerEditView: View {
                     phone: phone,
                     name: name,
                     gender: gender,
-                    birthdate: hasBirthdate ? birthdate : nil,
+                    birthdate: hasBirthdate ? formatDate(birthdate) : nil,
                     medicalHistory: medicalHistory.isEmpty ? nil : medicalHistory,
                     preferences: notes.isEmpty ? nil : parseNotes(notes),
                     associatedStoreId: selectedStoreId
@@ -208,12 +212,6 @@ struct CustomerEditView: View {
                         let photo_url: String?
                     }
                     
-                    var birthdateString: String?
-                    if hasBirthdate {
-                        let formatter = ISO8601DateFormatter()
-                        birthdateString = formatter.string(from: birthdate)
-                    }
-                    
                     let updateData = CustomerUpdate(
                         phone: phone,
                         name: name,
@@ -221,7 +219,7 @@ struct CustomerEditView: View {
                         associated_store_id: selectedStoreId?.uuidString,
                         medical_history: medicalHistory.isEmpty ? nil : medicalHistory,
                         preferences: notes.isEmpty ? nil : parseNotes(notes),
-                        birthdate: birthdateString,
+                        birthdate: hasBirthdate ? formatDate(birthdate) : nil,
                         photo_url: photoUrl
                     )
                     
@@ -275,6 +273,12 @@ struct CustomerEditView: View {
             }
             isSaving = false
         }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
     
     private func parseNotes(_ text: String) -> [String: String] {

@@ -122,7 +122,7 @@ struct CustomerDetailView: View {
             InfoRow(label: "性别", value: customer.genderDisplay)
             if let birthdate = customer.birthdate {
                 Divider()
-                InfoRow(label: "出生日期", value: birthdate.formatted(date: .long, time: .omitted))
+                InfoRow(label: "出生日期", value: birthdate)
             }
             if let lastVisit = customer.lastVisit {
                 Divider()
@@ -374,7 +374,7 @@ struct CustomerDetailView: View {
                 phone: "13800138000",
                 name: "张女士",
                 gender: "female",
-                birthdate: Date(timeIntervalSince1970: 631152000),
+                birthdate: "1990-01-01",
                 medicalHistory: "对玻尿酸过敏",
                 preferences: ["偏好项目": "水光针"],
                 photoUrl: nil,

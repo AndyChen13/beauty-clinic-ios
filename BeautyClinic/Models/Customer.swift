@@ -6,7 +6,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     let phone: String
     let name: String
     let gender: String?
-    let birthdate: Date?
+    let birthdate: String?
     let medicalHistory: String?
     let preferences: [String: String]?
     let photoUrl: String?
@@ -42,7 +42,10 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     }
     
     var age: Int? {
-        guard let birthdate = birthdate else { return nil }
+        guard let birthdateString = birthdate else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let birthdate = formatter.date(from: birthdateString) else { return nil }
         let calendar = Calendar.current
         let components = calendar.dateComponents([.year], from: birthdate, to: Date())
         return components.year
@@ -58,7 +61,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         phone: String,
         name: String,
         gender: String? = nil,
-        birthdate: Date? = nil,
+        birthdate: String? = nil,
         medicalHistory: String? = nil,
         preferences: [String: String]? = nil,
         photoUrl: String? = nil,
@@ -92,7 +95,7 @@ struct CustomerInsert: Codable, Sendable {
     let phone: String
     let name: String
     let gender: String?
-    let birthdate: Date?
+    let birthdate: String?
     let medicalHistory: String?
     let preferences: [String: String]?
     let associatedStoreId: UUID?
