@@ -50,10 +50,6 @@ enum COSConfig {
 enum TencentCOSUploadService {
     
     /// Upload image data to Tencent Cloud COS
-    /// - Parameters:
-    ///   - data: Image data
-    ///   - key: Optional custom key (filename). If nil, uses UUID.
-    /// - Returns: Public URL of the uploaded file
     static func uploadImage(_ data: Data, key: String? = nil) async throws -> String {
         let fileKey = key ?? "\(UUID().uuidString).jpg"
         let encodedKey = fileKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileKey
@@ -71,14 +67,17 @@ enum TencentCOSUploadService {
         request.setValue(COSConfig.bucket + ".cos." + COSConfig.region + ".myqcloud.com", forHTTPHeaderField: "Host")
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
         
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (responseData, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw COSError.invalidResponse
         }
         
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw COSError.uploadFailed("HTTP \(httpResponse.statusCode)")
+            let body = String(data: responseData, encoding: .utf8) ?? "no body"
+            print("[COS Upload Error] HTTP \(httpResponse.statusCode), Body: \(body)")
+            print("[COS Upload Error] Authorization: \(authorization)")
+            throw COSError.uploadFailed("HTTP \(httpResponse.statusCode) - \(body)")
         }
         
         let publicURL = "\(COSConfig.domain)/\(encodedKey)"
@@ -111,7 +110,7 @@ enum TencentCOSUploadService {
         let httpURI = "/\(encodedKey)"
         let httpParameters = "" // No query params
         let host = "\(COSConfig.bucket).cos.\(COSConfig.region).myqcloud.com"
-        let httpHeaders = "host=\(host)"
+        let httpHeaders = "content-type=image/jpeg&host=\(host)"
         let httpString = "\(httpMethod)\n\(httpURI)\n\(httpParameters)\n\(httpHeaders)\n"
         
         // StringToSign = sha1\nKeyTime\nsha1(HttpString)\n
@@ -125,7 +124,13 @@ enum TencentCOSUploadService {
         let signature = hmacSHA1(key: signKey, message: stringToSignData)
         let signatureBase64 = signature.base64EncodedString()
         
-        let authorization = "q-sign-algorithm=sha1&q-ak=\(COSConfig.secretId)&q-sign-time=\(keyTime)&q-key-time=\(keyTime)&q-header-list=host&q-url-param-list=&q-signature=\(signatureBase64)"
+        let authorization = "q-sign-algorithm=sha1&q-ak=\(COSConfig.secretId)&q-sign-time=\(keyTime)&q-key-time=\(keyTime)&q-header-list=content-type;host&q-url-param-list=&q-signature=\(signatureBase64)"
+        
+        // Debug log
+        print("[COS Debug] keyTime: \(keyTime)")
+        print("[COS Debug] httpString: \(httpString.replacingOccurrences(of: "\n", with: "\\n"))")
+        print("[COS Debug] stringToSign: \(stringToSign.replacingOccurrences(of: "\n", with: "\\n"))")
+        print("[COS Debug] auth: \(authorization.prefix(80))...")
         
         return authorization
     }

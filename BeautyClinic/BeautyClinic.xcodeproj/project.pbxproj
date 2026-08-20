@@ -7,72 +7,78 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		044A4F2696C142A0E2C5122E /* ServiceRecordEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F52F4560B0BD85B6ADA26390 /* ServiceRecordEditView.swift */; };
-		05A0458883248EB47EFFFEFD /* ServiceRecordRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B9464A8FAF203F93D1CEE2 /* ServiceRecordRow.swift */; };
-		2C367C44-82CE-445F-A016-CEA21DB85298 /* ServiceRecordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D6F7486-69B0-4654-AA51-B8565D6B99F5 /* ServiceRecordDetailView.swift */; };
 		0C0B66FF3E0442A8E6FACA8D /* CustomerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084CA9FBBF8416A1834CF65A /* CustomerListView.swift */; };
-		25404538BF05C50E7D13BF3E /* StoreDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DD4D0E959804EFCE2B8906 /* StoreDetailView.swift */; };
 		25AE620EAAA9A34B925E5FE5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B704B4207195B2F6247EEF00 /* Supabase */; };
-		3D63432BBF41BD60E5DBCE36 /* DeletionRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98C41C58CE283186B84F375 /* DeletionRequest.swift */; };
-		3FDE43AEA3E85BA6162FDD43 /* ServiceRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01314CF7B340F16C90FBF217 /* ServiceRecord.swift */; };
-		46C3419AA5F3C3ACAD6FB462 /* DeleteRequestSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F2443BBD1E21BED73E2E74 /* DeleteRequestSheet.swift */; };
+		2B3D3315832C4A6AF4D389D7 /* AdminApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCE7F138FA9979D56CF158B /* AdminApprovalView.swift */; };
 		471D5541205E2A7FF94E8347 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F7C2D9F9A01AD1C018D9E7 /* SettingsView.swift */; };
 		47D2642331FB18328D051845 /* SearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D83643D54CEBFE28A176D9 /* SearchBar.swift */; };
 		4BBA423942A6FCC044346A9B /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC723590F5718C6D070D7E6 /* Store.swift */; };
 		52219840875A18ADA7C499A3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3411B1F57260930C09CCABA4 /* ContentView.swift */; };
 		60AD158088FCC3E173F90889 /* StoreListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BB3C08D0A65572AA656B5F /* StoreListView.swift */; };
-		6C0A45C4A88EBA9CBCAFC8D3 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E904F66ABD526C433756267 /* AuthView.swift */; };
+		68B9A264AA268CBE1B082518 /* StoreDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD4351DC5BC36FD10D6982AA /* StoreDetailView.swift */; };
 		6F0F1F8212DB7DDE87C076C7 /* PackageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26767FC6C7B99E1DB7F39C2C /* PackageListView.swift */; };
 		728EC8E4B4433BF80B22447E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3233967894156788CDB448E4 /* Assets.xcassets */; };
 		72E80885FE83A3C1B4259C50 /* TransactionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA41B63D974C3A0A46E6252 /* TransactionListView.swift */; };
+		75527761001EF79F4A595CCB /* DeleteRequestSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A368B9236BD9091A143C9EB4 /* DeleteRequestSheet.swift */; };
 		8143D951EA7E2B29003B844D /* Transaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFA9DDD6D60F56699730A8C /* Transaction.swift */; };
 		8B4D8BD7C68560B460014E30 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A1E56CBBC145063BE939B4 /* LoginView.swift */; };
+		9E8ED9FA8CF396CD5E2D0AEC /* medical-beauty-split.html in Resources */ = {isa = PBXBuildFile; fileRef = 16705C6F6DC45DCAF04925C6 /* medical-beauty-split.html */; };
 		B10075170C8B410877BE91B0 /* ServicePackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107B7C5C4EFDFC58D1135120 /* ServicePackage.swift */; };
+		B37A31517DC5A297DDEAE030 /* ServiceRecordRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5504609B00219E89B4F1003 /* ServiceRecordRow.swift */; };
 		BCCE58F0608998BE83E4EF3E /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50E8BF2D6AD8AB99D673B6A /* FilterBar.swift */; };
+		C3706C61B93F14737602E8FD /* ServiceRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB7D19DFA5BF30BD0422A9D3 /* ServiceRecord.swift */; };
+		C7108B7BFC968DEA0C717FE1 /* ServiceRecordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CFA927B09B0BC258D65BACB /* ServiceRecordDetailView.swift */; };
 		CF3E94ECCD5785629F6B98EB /* CustomerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504B4EFC9649C1AD06DE9B0D /* CustomerDetailView.swift */; };
+		D3677A47E536CB5102028347 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A07C24BB22A5F096A19D07F6 /* AuthView.swift */; };
+		D852302611957B33B6C0C61C /* ServiceRecordEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A68166A80A11E2224A38B1 /* ServiceRecordEditView.swift */; };
 		DA061368E2451C614B2D26A0 /* CustomerEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B595F7C763CC13F5ECC5B8E2 /* CustomerEditView.swift */; };
 		DA839C5E44EF7BC7679FC2A4 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A62B210BCE4A1DD835602EA /* HomeView.swift */; };
 		DF7CD4DAFF23A312C150A024 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = D21E14877CD495A5A6A3E875 /* User.swift */; };
 		E0AC5997E8A0391FBB986AD5 /* Customer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21905401A79706C7D668D9B /* Customer.swift */; };
+		E44BD5114E6A7E5FEA0A318A /* TencentCOSUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB21F9E5547AE70FC1FD06D /* TencentCOSUploadService.swift */; };
 		EA0830BF8304944B95981BF2 /* CommonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9031C2C7601BA9FFA1D4DD6D /* CommonViews.swift */; };
 		EF71216627BC7BF2C75184FA /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11AAC25D33255828D4BFD1FA /* MainTabView.swift */; };
 		F2D2374CEF62D77372784C64 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 740C45D1D12017B9D8B52D0F /* App.swift */; };
-		F9B04207AA19B6A25DA117A4 /* AdminApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF644C28286A6E8431A627D /* AdminApprovalView.swift */; };
+		F4DD65A8467996837D538B94 /* COSCredentials.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1991998F7B80AEB3EDE66C85 /* COSCredentials.plist */; };
+		FAFA984BCF21226D4BCD39D0 /* DeletionRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCF09B6D7436F65B7618873 /* DeletionRequest.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		01314CF7B340F16C90FBF217 /* ServiceRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ServiceRecord.swift; path = Models/ServiceRecord.swift; sourceTree = SOURCE_ROOT; };
 		03F7C2D9F9A01AD1C018D9E7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		07BB3C08D0A65572AA656B5F /* StoreListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreListView.swift; sourceTree = "<group>"; };
 		084CA9FBBF8416A1834CF65A /* CustomerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerListView.swift; sourceTree = "<group>"; };
 		0D316AD07089764CAC9D76DF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		107B7C5C4EFDFC58D1135120 /* ServicePackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicePackage.swift; sourceTree = "<group>"; };
 		11AAC25D33255828D4BFD1FA /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		16705C6F6DC45DCAF04925C6 /* medical-beauty-split.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "medical-beauty-split.html"; sourceTree = "<group>"; };
+		1991998F7B80AEB3EDE66C85 /* COSCredentials.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = COSCredentials.plist; sourceTree = "<group>"; };
+		1BB21F9E5547AE70FC1FD06D /* TencentCOSUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TencentCOSUploadService.swift; sourceTree = "<group>"; };
 		26767FC6C7B99E1DB7F39C2C /* PackageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageListView.swift; sourceTree = "<group>"; };
 		2EC723590F5718C6D070D7E6 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
-		31F2443BBD1E21BED73E2E74 /* DeleteRequestSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeleteRequestSheet.swift; path = Views/DeleteRequestSheet.swift; sourceTree = SOURCE_ROOT; };
 		3233967894156788CDB448E4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3411B1F57260930C09CCABA4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		39A1E56CBBC145063BE939B4 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		504B4EFC9649C1AD06DE9B0D /* CustomerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerDetailView.swift; sourceTree = "<group>"; };
 		5A62B210BCE4A1DD835602EA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		6BF644C28286A6E8431A627D /* AdminApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AdminApprovalView.swift; path = Views/AdminApprovalView.swift; sourceTree = SOURCE_ROOT; };
+		6CFA927B09B0BC258D65BACB /* ServiceRecordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceRecordDetailView.swift; sourceTree = "<group>"; };
 		740C45D1D12017B9D8B52D0F /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
-		8E904F66ABD526C433756267 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = Views/AuthView.swift; sourceTree = SOURCE_ROOT; };
 		9031C2C7601BA9FFA1D4DD6D /* CommonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonViews.swift; sourceTree = "<group>"; };
 		97D83643D54CEBFE28A176D9 /* SearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBar.swift; sourceTree = "<group>"; };
-		A2DD4D0E959804EFCE2B8906 /* StoreDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StoreDetailView.swift; path = Views/StoreDetailView.swift; sourceTree = SOURCE_ROOT; };
+		A07C24BB22A5F096A19D07F6 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		A368B9236BD9091A143C9EB4 /* DeleteRequestSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteRequestSheet.swift; sourceTree = "<group>"; };
+		A9A68166A80A11E2224A38B1 /* ServiceRecordEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceRecordEditView.swift; sourceTree = "<group>"; };
 		AAD7DA875B814FEE5F310F8A /* BeautyClinic.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BeautyClinic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B595F7C763CC13F5ECC5B8E2 /* CustomerEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerEditView.swift; sourceTree = "<group>"; };
+		BB7D19DFA5BF30BD0422A9D3 /* ServiceRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceRecord.swift; sourceTree = "<group>"; };
 		BBA41B63D974C3A0A46E6252 /* TransactionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionListView.swift; sourceTree = "<group>"; };
+		BD4351DC5BC36FD10D6982AA /* StoreDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreDetailView.swift; sourceTree = "<group>"; };
 		BFFA9DDD6D60F56699730A8C /* Transaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transaction.swift; sourceTree = "<group>"; };
 		C21905401A79706C7D668D9B /* Customer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Customer.swift; sourceTree = "<group>"; };
 		C50E8BF2D6AD8AB99D673B6A /* FilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterBar.swift; sourceTree = "<group>"; };
-		C7B9464A8FAF203F93D1CEE2 /* ServiceRecordRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ServiceRecordRow.swift; path = Views/Common/ServiceRecordRow.swift; sourceTree = SOURCE_ROOT; };
-		9D6F7486-69B0-4654-AA51-B8565D6B99F5 /* ServiceRecordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceRecordDetailView.swift; sourceTree = "<group>"; };
+		CDCF09B6D7436F65B7618873 /* DeletionRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeletionRequest.swift; sourceTree = "<group>"; };
 		D21E14877CD495A5A6A3E875 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
-		E98C41C58CE283186B84F375 /* DeletionRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeletionRequest.swift; path = Models/DeletionRequest.swift; sourceTree = SOURCE_ROOT; };
-		F52F4560B0BD85B6ADA26390 /* ServiceRecordEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ServiceRecordEditView.swift; path = Views/ServiceRecordEditView.swift; sourceTree = SOURCE_ROOT; };
+		D5504609B00219E89B4F1003 /* ServiceRecordRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceRecordRow.swift; sourceTree = "<group>"; };
+		FCCE7F138FA9979D56CF158B /* AdminApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminApprovalView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,12 +97,12 @@
 			isa = PBXGroup;
 			children = (
 				C21905401A79706C7D668D9B /* Customer.swift */,
+				CDCF09B6D7436F65B7618873 /* DeletionRequest.swift */,
 				107B7C5C4EFDFC58D1135120 /* ServicePackage.swift */,
+				BB7D19DFA5BF30BD0422A9D3 /* ServiceRecord.swift */,
 				2EC723590F5718C6D070D7E6 /* Store.swift */,
 				BFFA9DDD6D60F56699730A8C /* Transaction.swift */,
 				D21E14877CD495A5A6A3E875 /* User.swift */,
-				01314CF7B340F16C90FBF217 /* ServiceRecord.swift */,
-				E98C41C58CE283186B84F375 /* DeletionRequest.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -107,9 +113,17 @@
 				9031C2C7601BA9FFA1D4DD6D /* CommonViews.swift */,
 				C50E8BF2D6AD8AB99D673B6A /* FilterBar.swift */,
 				97D83643D54CEBFE28A176D9 /* SearchBar.swift */,
-				C7B9464A8FAF203F93D1CEE2 /* ServiceRecordRow.swift */,
+				D5504609B00219E89B4F1003 /* ServiceRecordRow.swift */,
 			);
 			path = Common;
+			sourceTree = "<group>";
+		};
+		3E7E84032A7D2F2512087053 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				1991998F7B80AEB3EDE66C85 /* COSCredentials.plist */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		563C7D4A7DED52F62D957A33 /* BeautyClinic */ = {
@@ -118,7 +132,10 @@
 				740C45D1D12017B9D8B52D0F /* App.swift */,
 				3233967894156788CDB448E4 /* Assets.xcassets */,
 				0D316AD07089764CAC9D76DF /* Info.plist */,
+				16705C6F6DC45DCAF04925C6 /* medical-beauty-split.html */,
+				3E7E84032A7D2F2512087053 /* Config */,
 				199892FA26427499C4012840 /* Models */,
+				65E273083AD06E0940EA1E51 /* Services */,
 				B7117321E1FDCF533B86BBFC /* Views */,
 			);
 			name = BeautyClinic;
@@ -129,33 +146,43 @@
 			isa = PBXGroup;
 			children = (
 				563C7D4A7DED52F62D957A33 /* BeautyClinic */,
+				3E7E84032A7D2F2512087053 /* Config */,
 				199892FA26427499C4012840 /* Models */,
+				65E273083AD06E0940EA1E51 /* Services */,
 				B7117321E1FDCF533B86BBFC /* Views */,
 				CA9C4FA735C9350B558F8742 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
+		65E273083AD06E0940EA1E51 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				1BB21F9E5547AE70FC1FD06D /* TencentCOSUploadService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		B7117321E1FDCF533B86BBFC /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				FCCE7F138FA9979D56CF158B /* AdminApprovalView.swift */,
+				A07C24BB22A5F096A19D07F6 /* AuthView.swift */,
 				3411B1F57260930C09CCABA4 /* ContentView.swift */,
 				504B4EFC9649C1AD06DE9B0D /* CustomerDetailView.swift */,
 				B595F7C763CC13F5ECC5B8E2 /* CustomerEditView.swift */,
 				084CA9FBBF8416A1834CF65A /* CustomerListView.swift */,
+				A368B9236BD9091A143C9EB4 /* DeleteRequestSheet.swift */,
 				5A62B210BCE4A1DD835602EA /* HomeView.swift */,
 				39A1E56CBBC145063BE939B4 /* LoginView.swift */,
 				11AAC25D33255828D4BFD1FA /* MainTabView.swift */,
 				26767FC6C7B99E1DB7F39C2C /* PackageListView.swift */,
+				6CFA927B09B0BC258D65BACB /* ServiceRecordDetailView.swift */,
+				A9A68166A80A11E2224A38B1 /* ServiceRecordEditView.swift */,
 				03F7C2D9F9A01AD1C018D9E7 /* SettingsView.swift */,
+				BD4351DC5BC36FD10D6982AA /* StoreDetailView.swift */,
 				07BB3C08D0A65572AA656B5F /* StoreListView.swift */,
 				BBA41B63D974C3A0A46E6252 /* TransactionListView.swift */,
 				24C69AE2885CA8DDCFEC1F5A /* Common */,
-				6BF644C28286A6E8431A627D /* AdminApprovalView.swift */,
-				8E904F66ABD526C433756267 /* AuthView.swift */,
-				31F2443BBD1E21BED73E2E74 /* DeleteRequestSheet.swift */,
-				F52F4560B0BD85B6ADA26390 /* ServiceRecordEditView.swift */,
-				A2DD4D0E959804EFCE2B8906 /* StoreDetailView.swift */,
-				9D6F7486-69B0-4654-AA51-B8565D6B99F5 /* ServiceRecordDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -233,6 +260,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				728EC8E4B4433BF80B22447E /* Assets.xcassets in Resources */,
+				F4DD65A8467996837D538B94 /* COSCredentials.plist in Resources */,
+				9E8ED9FA8CF396CD5E2D0AEC /* medical-beauty-split.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,13 +272,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B3D3315832C4A6AF4D389D7 /* AdminApprovalView.swift in Sources */,
 				F2D2374CEF62D77372784C64 /* App.swift in Sources */,
+				D3677A47E536CB5102028347 /* AuthView.swift in Sources */,
 				EA0830BF8304944B95981BF2 /* CommonViews.swift in Sources */,
 				52219840875A18ADA7C499A3 /* ContentView.swift in Sources */,
 				E0AC5997E8A0391FBB986AD5 /* Customer.swift in Sources */,
 				CF3E94ECCD5785629F6B98EB /* CustomerDetailView.swift in Sources */,
 				DA061368E2451C614B2D26A0 /* CustomerEditView.swift in Sources */,
 				0C0B66FF3E0442A8E6FACA8D /* CustomerListView.swift in Sources */,
+				75527761001EF79F4A595CCB /* DeleteRequestSheet.swift in Sources */,
+				FAFA984BCF21226D4BCD39D0 /* DeletionRequest.swift in Sources */,
 				BCCE58F0608998BE83E4EF3E /* FilterBar.swift in Sources */,
 				DA839C5E44EF7BC7679FC2A4 /* HomeView.swift in Sources */,
 				8B4D8BD7C68560B460014E30 /* LoginView.swift in Sources */,
@@ -257,21 +290,18 @@
 				6F0F1F8212DB7DDE87C076C7 /* PackageListView.swift in Sources */,
 				47D2642331FB18328D051845 /* SearchBar.swift in Sources */,
 				B10075170C8B410877BE91B0 /* ServicePackage.swift in Sources */,
+				C3706C61B93F14737602E8FD /* ServiceRecord.swift in Sources */,
+				C7108B7BFC968DEA0C717FE1 /* ServiceRecordDetailView.swift in Sources */,
+				D852302611957B33B6C0C61C /* ServiceRecordEditView.swift in Sources */,
+				B37A31517DC5A297DDEAE030 /* ServiceRecordRow.swift in Sources */,
 				471D5541205E2A7FF94E8347 /* SettingsView.swift in Sources */,
 				4BBA423942A6FCC044346A9B /* Store.swift in Sources */,
+				68B9A264AA268CBE1B082518 /* StoreDetailView.swift in Sources */,
 				60AD158088FCC3E173F90889 /* StoreListView.swift in Sources */,
+				E44BD5114E6A7E5FEA0A318A /* TencentCOSUploadService.swift in Sources */,
 				8143D951EA7E2B29003B844D /* Transaction.swift in Sources */,
 				72E80885FE83A3C1B4259C50 /* TransactionListView.swift in Sources */,
 				DF7CD4DAFF23A312C150A024 /* User.swift in Sources */,
-				3FDE43AEA3E85BA6162FDD43 /* ServiceRecord.swift in Sources */,
-				3D63432BBF41BD60E5DBCE36 /* DeletionRequest.swift in Sources */,
-				05A0458883248EB47EFFFEFD /* ServiceRecordRow.swift in Sources */,
-				F9B04207AA19B6A25DA117A4 /* AdminApprovalView.swift in Sources */,
-				6C0A45C4A88EBA9CBCAFC8D3 /* AuthView.swift in Sources */,
-				46C3419AA5F3C3ACAD6FB462 /* DeleteRequestSheet.swift in Sources */,
-				044A4F2696C142A0E2C5122E /* ServiceRecordEditView.swift in Sources */,
-				25404538BF05C50E7D13BF3E /* StoreDetailView.swift in Sources */,
-				2C367C44-82CE-445F-A016-CEA21DB85298 /* ServiceRecordDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -348,11 +378,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Models",
-					"$(SRCROOT)/Views/Common",
-					"$(SRCROOT)/Views",
-				);
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.andychen.BeautyClinic;
 				PRODUCT_NAME = BeautyClinic;
@@ -376,11 +401,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/Models",
-					"$(SRCROOT)/Views/Common",
-					"$(SRCROOT)/Views",
 				);
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.andychen.BeautyClinic;
