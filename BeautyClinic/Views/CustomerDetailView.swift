@@ -232,42 +232,6 @@ struct CustomerDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
-    private func loadTransactions() async {
-        do {
-            let result: [Transaction] = try await supabase
-                .from("transactions")
-                .select("""
-                    *,
-                    packages(name),
-                    stores(name)
-                """)
-                .eq("customer_id", value: customer.id)
-                .order("transaction_date", ascending: false)
-                .limit(10)
-                .execute()
-                .value
-            transactions = result
-        } catch {
-            print("Error loading transactions: \(error)")
-        }
-    }
-    
-    private func loadPhotos() async {
-        do {
-            let result: [CustomerPhoto] = try await supabase
-                .from("customer_photos")
-                .select()
-                .eq("customer_id", value: customer.id)
-                .order("created_at", ascending: false)
-                .execute()
-                .value
-            photos = result
-        } catch {
-            print("Error loading photos: \(error)")
-        }
-    }
-}
-
     private var customerStatsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("客户状态")
@@ -349,6 +313,41 @@ struct CustomerDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
     
+    private func loadTransactions() async {
+        do {
+            let result: [Transaction] = try await supabase
+                .from("transactions")
+                .select("""
+                    *,
+                    packages(name),
+                    stores(name)
+                """)
+                .eq("customer_id", value: customer.id)
+                .order("transaction_date", ascending: false)
+                .limit(10)
+                .execute()
+                .value
+            transactions = result
+        } catch {
+            print("Error loading transactions: \(error)")
+        }
+    }
+    
+    private func loadPhotos() async {
+        do {
+            let result: [CustomerPhoto] = try await supabase
+                .from("customer_photos")
+                .select()
+                .eq("customer_id", value: customer.id)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+            photos = result
+        } catch {
+            print("Error loading photos: \(error)")
+        }
+    }
+    
     private func loadServiceRecords() async {
         do {
             let result: [ServiceRecord] = try await supabase
@@ -365,6 +364,7 @@ struct CustomerDetailView: View {
             print("Error loading service records: \(error)")
         }
     }
+}
 
 #Preview {
     NavigationStack {
