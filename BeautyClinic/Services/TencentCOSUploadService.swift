@@ -3,12 +3,19 @@ import Foundation
 import CryptoKit
 
 // MARK: - Configuration
-// TODO: Replace with your actual Tencent Cloud COS credentials after registration
+// Non-sensitive config (bucket & region)
 enum COSConfig {
-    static let secretId = "YOUR_SECRET_ID"
-    static let secretKey = "YOUR_SECRET_KEY"
-    static let bucket = "YOUR_BUCKET_NAME"
-    static let region = "ap-guangzhou" // 华南节点，可改为 ap-shanghai / ap-beijing
+    static let bucket = "beautyclinic-images-1472260859"
+    static let region = "ap-shanghai"
+    
+    /// SecretId & SecretKey loaded from COSCredentials.plist (gitignored)
+    static var secretId: String {
+        loadCredential(key: "SecretId")
+    }
+    
+    static var secretKey: String {
+        loadCredential(key: "SecretKey")
+    }
     
     /// Default domain for public access
     static var domain: String {
@@ -18,6 +25,24 @@ enum COSConfig {
     /// Upload endpoint
     static var uploadEndpoint: String {
         return "https://\(bucket).cos.\(region).myqcloud.com"
+    }
+    
+    private static func loadCredential(key: String) -> String {
+        // 1. Try COSCredentials.plist (local, gitignored)
+        if let path = Bundle.main.path(forResource: "COSCredentials", ofType: "plist"),
+           let dict = NSDictionary(contentsOfFile: path) as? [String: String],
+           let value = dict[key], !value.isEmpty, !value.hasPrefix("YOUR_") {
+            return value
+        }
+        
+        // 2. Fallback: try Info.plist
+        if let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+           !value.isEmpty, !value.hasPrefix("YOUR_") {
+            return value
+        }
+        
+        // 3. Fatal for missing credentials
+        fatalError("Missing COS credential '\(key)'. Please set it in COSCredentials.plist or Info.plist.")
     }
 }
 

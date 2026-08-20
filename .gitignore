@@ -18,3 +18,5 @@ supabase/.env
 # OS files
 .DS_Store
 Thumbs.db
+# Tencent COS credentials
+COSCredentials.plist
