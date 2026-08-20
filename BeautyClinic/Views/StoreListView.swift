@@ -436,6 +436,15 @@ struct StoreEditView: View {
             
             // Upload to Supabase Storage
             let fileName = "store-\(UUID().uuidString).jpg"
+            let response = try await supabase.storage
+                .from("store-images")
+                .upload(fileName, data: compressedData)
+            
+            // Build public URL
+            let publicURL = supabase.storage
+                .from("store-images")
+                .getPublicURL(path: response.path)
+            let fileName = "store-\(UUID().uuidString).jpg"
             let path = try await supabase.storage
                 .from("store-images")
                 .upload(fileName, data: compressedData)
