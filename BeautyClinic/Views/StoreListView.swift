@@ -172,7 +172,7 @@ struct StoreRow: View {
                 .fill(store.status.color.opacity(0.15))
                 .frame(width: 48, height: 48)
                 .overlay(
-                    Image(systemName: "building.2.fill")
+                    Image(systemName: store.iconName)
                         .font(.system(size: 18))
                         .foregroundColor(store.status.color)
                 )
@@ -229,6 +229,7 @@ struct StoreEditView: View {
     @State private var phone = ""
     @State private var status = StoreStatus.active
     @State private var managerId: UUID?
+    @State private var icon = "building.2.fill"
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -265,6 +266,28 @@ struct StoreEditView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+                
+                Section("门店图标") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 60))], spacing: 16) {
+                        ForEach(storeIconOptions, id: \.0) { option in
+                            VStack(spacing: 8) {
+                                Image(systemName: option.0)
+                                    .font(.system(size: 24))
+                                    .foregroundColor(icon == option.0 ? .white : .accentColor)
+                                    .frame(width: 56, height: 56)
+                                    .background(icon == option.0 ? Color.accentColor : Color(UIColor.secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                Text(option.1)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .onTapGesture {
+                                icon = option.0
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
                 }
             }
             .navigationTitle("添加门店")
@@ -304,7 +327,8 @@ struct StoreEditView: View {
                     address: address.isEmpty ? nil : address,
                     phone: phone.isEmpty ? nil : phone,
                     status: status,
-                    managerId: managerId
+                    managerId: managerId,
+                    icon: icon
                 )
                 
                 let created: [Store] = try await supabase
