@@ -19,6 +19,7 @@ targets:
           - "BeautyClinic.xcodeproj"
     resources:
       - Assets.xcassets
+      - Config
     settings:
       base:
         INFOPLIST_FILE: Info.plist
