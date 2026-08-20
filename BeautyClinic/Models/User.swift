@@ -42,11 +42,12 @@ struct UserInsert: Codable, Sendable {
     let id: UUID?
     let email: String?
     let name: String
+    let phone: String?
     let role: UserRole
     let storeId: UUID?
     
     enum CodingKeys: String, CodingKey {
-        case id, email, name, role
+        case id, email, name, phone, role
         case storeId = "store_id"
     }
 }
