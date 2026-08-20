@@ -4,7 +4,7 @@ values (
     'store-images',
     'store-images',
     true,
-    5242880, -- 5MB limit
+    31457280, -- 30MB limit
     array['image/jpeg', 'image/png', 'image/webp']
 )
 on conflict (id) do nothing;
