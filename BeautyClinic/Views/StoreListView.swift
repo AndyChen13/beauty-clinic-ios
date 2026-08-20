@@ -447,7 +447,7 @@ struct StoreEditView: View {
             }
             
             let fileName = "store-\(UUID().uuidString).jpg"
-            let publicURL = try await QiniuUploadService.uploadImage(compressedData, key: fileName)
+            let publicURL = try await TencentCOSUploadService.uploadImage(compressedData, key: fileName)
             
             await MainActor.run {
                 imageUrl = publicURL

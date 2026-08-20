@@ -145,7 +145,7 @@ struct ServiceRecordEditView: View {
                 // Upload photos
                 for photoData in photoDataList {
                     let fileName = "service-\(UUID().uuidString).jpg"
-                    let url = try await QiniuUploadService.uploadImage(photoData, key: fileName)
+                    let url = try await TencentCOSUploadService.uploadImage(photoData, key: fileName)
                     photoUrls.append(url)
                 }
                 

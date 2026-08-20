@@ -201,7 +201,7 @@ struct CustomerEditView: View {
                 // Upload photo if selected
                 if let photoData = photoData {
                     let fileName = "customer-\(UUID().uuidString).jpg"
-                    photoUrl = try await QiniuUploadService.uploadImage(photoData, key: fileName)
+                    photoUrl = try await TencentCOSUploadService.uploadImage(photoData, key: fileName)
                 }
                 
                 let outstandingValue = Double(outstandingAmount)
