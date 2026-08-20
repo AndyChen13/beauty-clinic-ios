@@ -87,10 +87,6 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         self.updatedAt = updatedAt
     }
 }
-        guard let prefs = preferences, !prefs.isEmpty else { return "无备注" }
-        return prefs.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
-    }
-}
 
 struct CustomerInsert: Codable, Sendable {
     let phone: String
