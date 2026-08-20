@@ -9,19 +9,16 @@ struct Store: Codable, Identifiable, Hashable, Sendable {
     let phone: String?
     let status: StoreStatus
     let managerId: UUID?
-    let icon: String?
+    let imageUrl: String?
     let createdAt: Date?
     let updatedAt: Date?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, address, phone, status, icon
+        case id, name, address, phone, status
         case managerId = "manager_id"
+        case imageUrl = "image_url"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
-    }
-    
-    var iconName: String {
-        icon ?? "building.2.fill"
     }
 }
 
@@ -53,21 +50,11 @@ struct StoreInsert: Codable, Sendable {
     let phone: String?
     let status: StoreStatus
     let managerId: UUID?
-    let icon: String?
+    let imageUrl: String?
     
     enum CodingKeys: String, CodingKey {
-        case name, address, phone, status, icon
+        case name, address, phone, status
         case managerId = "manager_id"
+        case imageUrl = "image_url"
     }
 }
-
-let storeIconOptions = [
-    ("building.2.fill", "默认门店"),
-    ("storefront.fill", "街边店"),
-    ("house.fill", "工作室"),
-    ("cross.case.fill", "医疗美容"),
-    ("heart.fill", "美容护理"),
-    ("sparkles", "高端会所"),
-    ("leaf.fill", "自然疗法"),
-    ("wand.and.stars", "科技美容"),
-]

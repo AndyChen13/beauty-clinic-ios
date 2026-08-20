@@ -1,5 +1,6 @@
 // Views/StoreListView.swift
 import SwiftUI
+import PhotosUI
 
 struct StoreListView: View {
     @EnvironmentObject var userState: UserState
@@ -154,6 +155,7 @@ struct StoreListView: View {
     }
 }
 
+// MARK: - Store Row
 struct StoreRow: View {
     let store: Store
     let users: [User]
@@ -168,14 +170,8 @@ struct StoreRow: View {
     
     var body: some View {
         HStack(spacing: 14) {
-            Circle()
-                .fill(store.status.color.opacity(0.15))
-                .frame(width: 48, height: 48)
-                .overlay(
-                    Image(systemName: store.iconName)
-                        .font(.system(size: 18))
-                        .foregroundColor(store.status.color)
-                )
+            // 门店头像
+            StoreAvatarView(imageUrl: store.imageUrl, status: store.status)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(store.name)
@@ -212,11 +208,56 @@ struct StoreRow: View {
     }
 }
 
+// MARK: - Store Avatar View
+struct StoreAvatarView: View {
+    let imageUrl: String?
+    let status: StoreStatus
+    let size: CGFloat = 48
+    
+    var body: some View {
+        if let urlString = imageUrl,
+           let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .frame(width: size, height: size)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size, height: size)
+                        .clipShape(Circle())
+                case .failure:
+                    defaultAvatar
+                @unknown default:
+                    defaultAvatar
+                }
+            }
+        } else {
+            defaultAvatar
+        }
+    }
+    
+    private var defaultAvatar: some View {
+        Circle()
+            .fill(status.color.opacity(0.15))
+            .frame(width: size, height: size)
+            .overlay(
+                Image(systemName: "building.2")
+                    .font(.system(size: 18))
+                    .foregroundColor(status.color)
+            )
+    }
+}
+
+// MARK: - Edit Mode
 enum StoreEditMode {
     case create
     case edit(Store)
 }
 
+// MARK: - Store Edit View
 struct StoreEditView: View {
     @Environment(\.dismiss) private var dismiss
     
@@ -229,10 +270,15 @@ struct StoreEditView: View {
     @State private var phone = ""
     @State private var status = StoreStatus.active
     @State private var managerId: UUID?
-    @State private var icon = "building.2.fill"
+    @State private var imageUrl: String?
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
+    
+    // Photo picker states
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var selectedImageData: Data?
+    @State private var isUploadingImage = false
     
     var body: some View {
         NavigationStack {
@@ -268,29 +314,59 @@ struct StoreEditView: View {
                     .pickerStyle(.segmented)
                 }
                 
-                Section("门店图标") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 60))], spacing: 16) {
-                        ForEach(storeIconOptions, id: \.0) { option in
-                            VStack(spacing: 8) {
-                                Image(systemName: option.0)
-                                    .font(.system(size: 24))
-                                    .foregroundColor(icon == option.0 ? .white : .accentColor)
-                                    .frame(width: 56, height: 56)
-                                    .background(icon == option.0 ? Color.accentColor : Color(UIColor.secondarySystemBackground))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                                Text(option.1)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                Section("门店头像") {
+                    VStack(spacing: 16) {
+                        // Preview
+                        if let imageData = selectedImageData,
+                           let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipShape(Circle())
+                        } else if let urlString = imageUrl,
+                                  let url = URL(string: urlString) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 80, height: 80)
+                                        .clipShape(Circle())
+                                default:
+                                    placeholder
+                                }
                             }
-                            .onTapGesture {
-                                icon = option.0
-                            }
+                        } else {
+                            placeholder
                         }
+                        
+                        // Photo Picker
+                        PhotosPicker(
+                            selection: $selectedPhotoItem,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            HStack(spacing: 6) {
+                                if isUploadingImage {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "photo")
+                                    Text(selectedImageData != nil || imageUrl != nil ? "更换照片" : "选择照片")
+                                }
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.accentColor)
+                        }
+                        .disabled(isUploadingImage)
                     }
+                    .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                 }
             }
-            .navigationTitle("添加门店")
+            .navigationTitle(modeTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -304,7 +380,7 @@ struct StoreEditView: View {
                             Text("保存")
                         }
                     }
-                    .disabled(name.isEmpty || isSaving)
+                    .disabled(name.isEmpty || isSaving || isUploadingImage)
                 }
             }
             .alert("保存失败", isPresented: $showError) {
@@ -312,9 +388,108 @@ struct StoreEditView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                guard let newItem else { return }
+                Task {
+                    await loadAndUploadPhoto(item: newItem)
+                }
+            }
         }
     }
     
+    private var modeTitle: String {
+        switch mode {
+        case .create: return "添加门店"
+        case .edit: return "编辑门店"
+        }
+    }
+    
+    private var placeholder: some View {
+        Circle()
+            .fill(status.color.opacity(0.15))
+            .frame(width: 80, height: 80)
+            .overlay(
+                Image(systemName: "building.2")
+                    .font(.system(size: 28))
+                    .foregroundColor(status.color)
+            )
+    }
+    
+    // MARK: - Photo Loading & Upload
+    private func loadAndUploadPhoto(item: PhotosPickerItem) async {
+        isUploadingImage = true
+        defer { isUploadingImage = false }
+        
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                throw NSError(domain: "Photo", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法加载照片"])
+            }
+            
+            // Compress image
+            guard let compressedData = compressImage(data) else {
+                throw NSError(domain: "Photo", code: -1, userInfo: [NSLocalizedDescriptionKey: "图片压缩失败"])
+            }
+            
+            await MainActor.run {
+                selectedImageData = compressedData
+            }
+            
+            // Upload to Supabase Storage
+            let fileName = "store-\(UUID().uuidString).jpg"
+            let path = try await supabase.storage
+                .from("store-images")
+                .upload(fileName, data: compressedData)
+            
+            // Build public URL
+            let publicURL = supabase.storage
+                .from("store-images")
+                .getPublicURL(path: path)
+            
+            await MainActor.run {
+                imageUrl = publicURL.absoluteString
+            }
+            
+        } catch {
+            await MainActor.run {
+                errorMessage = "上传失败: \(error.localizedDescription)"
+                showError = true
+            }
+        }
+    }
+    
+    // MARK: - Image Compression
+    private func compressImage(_ data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        
+        let maxSize: CGFloat = 512
+        let size = image.size
+        let ratio = size.width / size.height
+        
+        var newSize: CGSize
+        if ratio > 1 {
+            newSize = CGSize(width: maxSize, height: maxSize / ratio)
+        } else {
+            newSize = CGSize(width: maxSize * ratio, height: maxSize)
+        }
+        
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        
+        // Target ~200KB
+        var quality: CGFloat = 0.8
+        var compressedData = resized.jpegData(compressionQuality: quality)
+        
+        while let data = compressedData, data.count > 200_000, quality > 0.3 {
+            quality -= 0.1
+            compressedData = resized.jpegData(compressionQuality: quality)
+        }
+        
+        return compressedData
+    }
+    
+    // MARK: - Save Store
     private func saveStore() {
         guard !name.isEmpty else { return }
         
@@ -328,7 +503,7 @@ struct StoreEditView: View {
                     phone: phone.isEmpty ? nil : phone,
                     status: status,
                     managerId: managerId,
-                    icon: icon
+                    imageUrl: imageUrl
                 )
                 
                 let created: [Store] = try await supabase
