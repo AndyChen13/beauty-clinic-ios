@@ -175,7 +175,6 @@ struct StoreRow: View {
     
     var body: some View {
         HStack(spacing: 14) {
-            // 门店头像
             StoreAvatarView(imageUrl: store.imageUrl, status: store.status)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -218,9 +217,6 @@ struct StoreAvatarView: View {
     let imageUrl: String?
     let status: StoreStatus
     var size: CGFloat = 48
-    let imageUrl: String?
-    let status: StoreStatus
-    let size: CGFloat = 48
     
     var body: some View {
         if let urlString = imageUrl,
@@ -253,7 +249,7 @@ struct StoreAvatarView: View {
             .frame(width: size, height: size)
             .overlay(
                 Image(systemName: "building.2")
-                    .font(.system(size: 18))
+                    .font(.system(size: size * 0.375))
                     .foregroundColor(status.color)
             )
     }
@@ -283,7 +279,6 @@ struct StoreEditView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
-    // Photo picker states
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
     @State private var isUploadingImage = false
@@ -324,7 +319,6 @@ struct StoreEditView: View {
                 
                 Section("门店头像") {
                     VStack(spacing: 16) {
-                        // Preview
                         if let imageData = selectedImageData,
                            let uiImage = UIImage(data: imageData) {
                             Image(uiImage: uiImage)
@@ -350,7 +344,6 @@ struct StoreEditView: View {
                             placeholder
                         }
                         
-                        // Photo Picker
                         PhotosPicker(
                             selection: $selectedPhotoItem,
                             matching: .images,
@@ -423,7 +416,6 @@ struct StoreEditView: View {
             )
     }
     
-    // MARK: - Photo Loading & Upload
     private func loadAndUploadPhoto(item: PhotosPickerItem) async {
         isUploadingImage = true
         defer { isUploadingImage = false }
@@ -433,7 +425,6 @@ struct StoreEditView: View {
                 throw NSError(domain: "Photo", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法加载照片"])
             }
             
-            // Compress image
             guard let compressedData = compressImage(data) else {
                 throw NSError(domain: "Photo", code: -1, userInfo: [NSLocalizedDescriptionKey: "图片压缩失败"])
             }
@@ -442,13 +433,11 @@ struct StoreEditView: View {
                 selectedImageData = compressedData
             }
             
-            // Upload to Supabase Storage
             let fileName = "store-\(UUID().uuidString).jpg"
             let response = try await supabase.storage
                 .from("store-images")
                 .upload(fileName, data: compressedData)
             
-            // Build public URL
             let publicURL = try supabase.storage
                 .from("store-images")
                 .getPublicURL(path: response.path)
@@ -464,7 +453,6 @@ struct StoreEditView: View {
         }
     }
     
-    // MARK: - Image Compression
     private func compressImage(_ data: Data) -> Data? {
         guard let image = UIImage(data: data) else { return nil }
         
@@ -484,7 +472,6 @@ struct StoreEditView: View {
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }
         
-        // Target ~200KB
         var quality: CGFloat = 0.8
         var compressedData = resized.jpegData(compressionQuality: quality)
         
@@ -496,7 +483,6 @@ struct StoreEditView: View {
         return compressedData
     }
     
-    // MARK: - Save Store
     private func saveStore() {
         guard !name.isEmpty else { return }
         
