@@ -13,6 +13,8 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     let associatedStoreId: UUID?
     let createdBy: UUID?
     let lastVisit: Date?
+    let outstandingAmount: Double?
+    let conversionProbability: Int?
     let createdAt: Date?
     let updatedAt: Date?
     
@@ -24,6 +26,8 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         case associatedStoreId = "associated_store_id"
         case createdBy = "created_by"
         case lastVisit = "last_visit"
+        case outstandingAmount = "outstanding_amount"
+        case conversionProbability = "conversion_probability"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }

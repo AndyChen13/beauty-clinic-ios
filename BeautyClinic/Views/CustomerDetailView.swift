@@ -6,8 +6,10 @@ struct CustomerDetailView: View {
     let stores: [Store]
     @State private var transactions: [Transaction] = []
     @State private var photos: [CustomerPhoto] = []
+    @State private var serviceRecords: [ServiceRecord] = []
     @State private var isLoading = false
     @State private var isEditing = false
+    @State private var showingServiceSheet = false
     
     private var storeName: String {
         if let storeId = customer.associatedStoreId,
@@ -31,7 +33,9 @@ struct CustomerDetailView: View {
                     preferencesCard(prefs: prefs)
                 }
                 
+                customerStatsCard
                 photosSection
+                serviceRecordsSection
                 transactionsSection
             }
             .padding()
@@ -40,15 +44,34 @@ struct CustomerDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("编辑") { isEditing = true }
+                HStack(spacing: 16) {
+                    Button {
+                        showingServiceSheet = true
+                    } label: {
+                        Image(systemName: "plus.circle")
+                    }
+                    Button("编辑") { isEditing = true }
+                }
             }
         }
         .sheet(isPresented: $isEditing) {
             CustomerEditView(mode: .edit(customer), stores: stores) { _ in }
         }
+        .sheet(isPresented: $showingServiceSheet) {
+            ServiceRecordEditView(
+                customer: customer,
+                transactions: transactions
+            ) { _ in
+                Task {
+                    await loadServiceRecords()
+                    await loadTransactions()
+                }
+            }
+        }
         .task {
             await loadTransactions()
             await loadPhotos()
+            await loadServiceRecords()
         }
     }
     
@@ -245,6 +268,104 @@ struct CustomerDetailView: View {
     }
 }
 
+    private var customerStatsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("客户状态")
+                .font(.headline)
+            
+            HStack(spacing: 20) {
+                if let outstanding = customer.outstandingAmount, outstanding > 0 {
+                    VStack(spacing: 4) {
+                        Text("¥\(String(format: "%.0f", outstanding))")
+                            .font(.title3.weight(.bold))
+                            .foregroundColor(.orange)
+                        Text("待收款项")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                if let probability = customer.conversionProbability {
+                    VStack(spacing: 4) {
+                        Text("\(probability)%")
+                            .font(.title3.weight(.bold))
+                            .foregroundColor(probability >= 70 ? .green : probability >= 40 ? .orange : .red)
+                        Text("成交概率")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                if !serviceRecords.isEmpty {
+                    VStack(spacing: 4) {
+                        Text("\(serviceRecords.count)")
+                            .font(.title3.weight(.bold))
+                        Text("服务次数")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Spacer()
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private var serviceRecordsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("服务记录")
+                    .font(.headline)
+                Spacer()
+                if isLoading {
+                    ProgressView().scaleEffect(0.8)
+                }
+            }
+            
+            if serviceRecords.isEmpty && !isLoading {
+                Text("暂无服务记录")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
+            } else {
+                ForEach(serviceRecords.prefix(5)) { record in
+                    ServiceRecordRow(record: record)
+                }
+                
+                if serviceRecords.count > 5 {
+                    Text("还有 \(serviceRecords.count - 5) 条记录")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+        }
+        .padding()
+        .background(Color(UIColor.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private func loadServiceRecords() async {
+        do {
+            let result: [ServiceRecord] = try await supabase
+                .from("service_records")
+                .select()
+                .eq("customer_id", value: customer.id)
+                .order("service_date", ascending: false)
+                .execute()
+                .value
+            await MainActor.run {
+                serviceRecords = result
+            }
+        } catch {
+            print("Error loading service records: \(error)")
+        }
+    }
+
 #Preview {
     NavigationStack {
         CustomerDetailView(
@@ -260,6 +381,8 @@ struct CustomerDetailView: View {
                 associatedStoreId: nil,
                 createdBy: nil,
                 lastVisit: nil,
+                outstandingAmount: 500,
+                conversionProbability: 75,
                 createdAt: nil,
                 updatedAt: nil
             ),
