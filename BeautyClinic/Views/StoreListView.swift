@@ -447,16 +447,10 @@ struct StoreEditView: View {
             }
             
             let fileName = "store-\(UUID().uuidString).jpg"
-            let response = try await supabase.storage
-                .from("store-images")
-                .upload(fileName, data: compressedData)
-            
-            let publicURL = try supabase.storage
-                .from("store-images")
-                .getPublicURL(path: response.path)
+            let publicURL = try await QiniuUploadService.uploadImage(compressedData, key: fileName)
             
             await MainActor.run {
-                imageUrl = publicURL.absoluteString
+                imageUrl = publicURL
             }
         } catch {
             await MainActor.run {

@@ -144,15 +144,8 @@ struct ServiceRecordEditView: View {
                 
                 // Upload photos
                 for photoData in photoDataList {
-                    let fileName = "\(UUID().uuidString).jpg"
-                    let _ = try await supabase.storage
-                        .from("customer-photos")
-                        .upload(fileName, data: photoData)
-                    
-                    let url = try supabase.storage
-                        .from("customer-photos")
-                        .getPublicURL(path: fileName)
-                        .absoluteString
+                    let fileName = "service-\(UUID().uuidString).jpg"
+                    let url = try await QiniuUploadService.uploadImage(photoData, key: fileName)
                     photoUrls.append(url)
                 }
                 

@@ -200,15 +200,8 @@ struct CustomerEditView: View {
                 
                 // Upload photo if selected
                 if let photoData = photoData {
-                    let fileName = "\(UUID().uuidString).jpg"
-                    let _ = try await supabase.storage
-                        .from("customer-photos")
-                        .upload(fileName, data: photoData)
-                    
-                    photoUrl = try supabase.storage
-                        .from("customer-photos")
-                        .getPublicURL(path: fileName)
-                        .absoluteString
+                    let fileName = "customer-\(UUID().uuidString).jpg"
+                    photoUrl = try await QiniuUploadService.uploadImage(photoData, key: fileName)
                 }
                 
                 let outstandingValue = Double(outstandingAmount)
