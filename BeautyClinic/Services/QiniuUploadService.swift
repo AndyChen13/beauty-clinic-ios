@@ -5,8 +5,8 @@ import CryptoKit
 // MARK: - Configuration
 // TODO: Replace with your actual Qiniu credentials after registration
 enum QiniuConfig {
-    static let accessKey = "YOUR_ACCESS_KEY"
-    static let secretKey = "YOUR_SECRET_KEY"
+    static let accessKey = "SAWmVI4p5U4-R2ZkAhsHIzHGU1anTJ7JJrX01_t4"
+    static let secretKey = "flzXVP-mZ64aYDgSbSW9w3eAbFYYfpJelFAoiVTG"
     static let bucket = "YOUR_BUCKET_NAME"
     static let domain = "YOUR_DOMAIN" // e.g., "https://xxx.qiniudn.com"
     static let uploadURL = "https://up-z2.qiniup.com" // 华南节点
