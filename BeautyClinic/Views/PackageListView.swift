@@ -2,12 +2,18 @@
 import SwiftUI
 
 struct PackageListView: View {
+    @EnvironmentObject var userState: UserState
     @State private var packages: [ServicePackage] = []
     @State private var trainingMaterials: [TrainingMaterial] = []
     @State private var isLoading = false
     @State private var showingAddSheet = false
     @State private var selectedCategory: PackageCategory? = nil
     @State private var selectedTab = 0
+    @State private var showingDeleteRequest = false
+    @State private var packageToDelete: ServicePackage?
+    @State private var deleteReason = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var filteredPackages: [ServicePackage] {
         guard let category = selectedCategory else { return packages.filter { $0.isActive } }
@@ -38,6 +44,18 @@ struct PackageListView: View {
                         Image(systemName: "plus")
                     }
                 }
+            }
+            .sheet(isPresented: $showingDeleteRequest) {
+                DeleteRequestSheet(
+                    itemName: packageToDelete?.name ?? "",
+                    reason: $deleteReason,
+                    onSubmit: submitDeleteRequest
+                )
+            }
+            .alert("错误", isPresented: $showError) {
+                Button("确定", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
             }
             .task { await loadData() }
             .refreshable { await loadData() }
@@ -86,6 +104,23 @@ struct PackageListView: View {
                 List {
                     ForEach(filteredPackages) { package in
                         PackageRow(package: package)
+                            .swipeActions(edge: .trailing) {
+                                if userState.isAdmin {
+                                    Button(role: .destructive) {
+                                        deletePackage(package)
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                } else {
+                                    Button {
+                                        packageToDelete = package
+                                        showingDeleteRequest = true
+                                    } label: {
+                                        Label("申请删除", systemImage: "trash")
+                                    }
+                                    .tint(.orange)
+                                }
+                            }
                     }
                 }
                 .listStyle(.plain)
@@ -119,6 +154,51 @@ struct PackageListView: View {
                     }
                 }
                 .listStyle(.plain)
+            }
+        }
+    }
+    
+    private func deletePackage(_ package: ServicePackage) {
+        guard userState.isAdmin else { return }
+        Task {
+            do {
+                _ = try await supabase
+                    .from("packages")
+                    .delete()
+                    .eq("id", value: package.id)
+                    .execute()
+                await MainActor.run {
+                    packages.removeAll { $0.id == package.id }
+                }
+            } catch {
+                errorMessage = "删除失败: \(error.localizedDescription)"
+                showError = true
+            }
+        }
+    }
+    
+    private func submitDeleteRequest() {
+        guard let package = packageToDelete else { return }
+        Task {
+            do {
+                let request = DeletionRequestInsert(
+                    requesterId: userState.currentUser?.id ?? UUID(),
+                    targetType: "package",
+                    targetId: package.id,
+                    targetName: package.name,
+                    reason: deleteReason.isEmpty ? nil : deleteReason
+                )
+                _ = try await supabase
+                    .from("deletion_requests")
+                    .insert(request)
+                    .execute()
+                await MainActor.run {
+                    deleteReason = ""
+                    packageToDelete = nil
+                }
+            } catch {
+                errorMessage = "提交失败: \(error.localizedDescription)"
+                showError = true
             }
         }
     }

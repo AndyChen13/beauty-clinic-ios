@@ -7,6 +7,9 @@ struct StoreListView: View {
     @State private var users: [User] = []
     @State private var isLoading = false
     @State private var showingAddSheet = false
+    @State private var showingDeleteRequest = false
+    @State private var storeToDelete: Store?
+    @State private var deleteReason = ""
     @State private var showError = false
     @State private var errorMessage = ""
     
@@ -57,6 +60,13 @@ struct StoreListView: View {
             }
             .task { await loadData() }
             .refreshable { await loadData() }
+            .sheet(isPresented: $showingDeleteRequest) {
+                DeleteRequestSheet(
+                    itemName: storeToDelete?.name ?? "",
+                    reason: $deleteReason,
+                    onSubmit: submitDeleteRequest
+                )
+            }
             .alert("错误", isPresented: $showError) {
                 Button("确定", role: .cancel) {}
             } message: {
@@ -92,22 +102,52 @@ struct StoreListView: View {
     }
     
     private func deleteStore(at offsets: IndexSet) {
-        guard userState.isAdmin, let index = offsets.first else { return }
+        guard let index = offsets.first else { return }
         let store = stores[index]
         
+        if userState.isAdmin {
+            Task {
+                do {
+                    _ = try await supabase
+                        .from("stores")
+                        .delete()
+                        .eq("id", value: store.id)
+                        .execute()
+                    await MainActor.run {
+                        stores.remove(at: index)
+                    }
+                } catch {
+                    errorMessage = "删除失败: \(error.localizedDescription)"
+                    showError = true
+                }
+            }
+        } else {
+            storeToDelete = store
+            showingDeleteRequest = true
+        }
+    }
+    
+    private func submitDeleteRequest() {
+        guard let store = storeToDelete else { return }
         Task {
             do {
+                let request = DeletionRequestInsert(
+                    requesterId: userState.currentUser?.id ?? UUID(),
+                    targetType: "store",
+                    targetId: store.id,
+                    targetName: store.name,
+                    reason: deleteReason.isEmpty ? nil : deleteReason
+                )
                 _ = try await supabase
-                    .from("stores")
-                    .delete()
-                    .eq("id", value: store.id)
+                    .from("deletion_requests")
+                    .insert(request)
                     .execute()
-                
                 await MainActor.run {
-                    stores.remove(at: index)
+                    deleteReason = ""
+                    storeToDelete = nil
                 }
             } catch {
-                errorMessage = "删除失败: \(error.localizedDescription)"
+                errorMessage = "提交失败: \(error.localizedDescription)"
                 showError = true
             }
         }

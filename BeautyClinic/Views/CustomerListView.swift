@@ -8,6 +8,11 @@ struct CustomerListView: View {
     @State private var isLoading = false
     @State private var searchTerm = ""
     @State private var showingAddSheet = false
+    @State private var showingDeleteRequest = false
+    @State private var customerToDelete: Customer?
+    @State private var deleteReason = ""
+    @State private var showError = false
+    @State private var errorMessage = ""
     
     var filteredCustomers: [Customer] {
         if searchTerm.isEmpty { return customers }
@@ -47,6 +52,23 @@ struct CustomerListView: View {
                             NavigationLink(destination: CustomerDetailView(customer: customer, stores: stores)) {
                                 CustomerRow(customer: customer)
                             }
+                            .swipeActions(edge: .trailing) {
+                                if userState.isAdmin {
+                                    Button(role: .destructive) {
+                                        deleteCustomer(customer)
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                } else {
+                                    Button {
+                                        customerToDelete = customer
+                                        showingDeleteRequest = true
+                                    } label: {
+                                        Label("申请删除", systemImage: "trash")
+                                    }
+                                    .tint(.orange)
+                                }
+                            }
                         }
                     }
                     .listStyle(.plain)
@@ -65,8 +87,65 @@ struct CustomerListView: View {
                     customers.insert(newCustomer, at: 0)
                 }
             }
+            .sheet(isPresented: $showingDeleteRequest) {
+                DeleteRequestSheet(
+                    itemName: customerToDelete?.name ?? "",
+                    reason: $deleteReason,
+                    onSubmit: submitDeleteRequest
+                )
+            }
+            .alert("错误", isPresented: $showError) {
+                Button("确定", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
+            }
             .task { await loadData() }
             .refreshable { await loadData() }
+        }
+    }
+    
+    private func deleteCustomer(_ customer: Customer) {
+        guard userState.isAdmin else { return }
+        Task {
+            do {
+                _ = try await supabase
+                    .from("customers")
+                    .delete()
+                    .eq("id", value: customer.id)
+                    .execute()
+                await MainActor.run {
+                    customers.removeAll { $0.id == customer.id }
+                }
+            } catch {
+                errorMessage = "删除失败: \(error.localizedDescription)"
+                showError = true
+            }
+        }
+    }
+    
+    private func submitDeleteRequest() {
+        guard let customer = customerToDelete else { return }
+        Task {
+            do {
+                let request = DeletionRequestInsert(
+                    requesterId: userState.currentUser?.id ?? UUID(),
+                    targetType: "customer",
+                    targetId: customer.id,
+                    targetName: customer.name,
+                    reason: deleteReason.isEmpty ? nil : deleteReason
+                )
+                _ = try await supabase
+                    .from("deletion_requests")
+                    .insert(request)
+                    .execute()
+                await MainActor.run {
+                    deleteReason = ""
+                    customerToDelete = nil
+                }
+            } catch {
+                errorMessage = "提交失败: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
     
