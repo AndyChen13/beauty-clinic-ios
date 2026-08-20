@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>医美合作分账工具</title>
+<style>
+  :root {
+    --bg: #f2f4f8;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --accent: #4f46e5;
+    --accent2: #ec4899;
+    --accent3: #10b981;
+    --accent4: #f59e0b;
+    --border: #e5e7eb;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text);
+    font-size: 16px;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .container {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 16px;
+    padding-bottom: 120px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 20px;
+    margin: 12px 0 20px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .partner-a { color: var(--accent); }
+  .partner-b { color: var(--accent2); }
+  .salon { color: var(--accent3); }
+  .operator { color: var(--accent4); }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 8px;
+    width: 100%;
+  }
+  .input-row > * {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .input-row input[type="text"] {
+    flex: 1 1 auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 7px;
+    font-size: 14px;
+    outline: none;
+    background: #fafbfc;
+    min-width: 0;
+    width: 0;
+  }
+  .input-row input[type="text"]:focus {
+    border-color: var(--accent);
+    background: #fff;
+  }
+  .input-row input.amount {
+    flex: 0 0 78px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    padding: 10px 6px;
+    width: 78px;
+  }
+  .input-row input.note {
+    flex: 0 1 45px;
+    min-width: 0;
+  }
+  .input-row input.item {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .btn-add {
+    background: #f3f4f6;
+    border: 1px dashed #d1d5db;
+    color: var(--muted);
+    border-radius: 10px;
+    padding: 10px;
+    width: 100%;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .btn-add:active { background: #e5e7eb; }
+  .btn-remove {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    flex: 0 0 22px;
+    text-align: center;
+  }
+
+  /* 垫付人切换按钮 */
+  .payer-toggle {
+    flex: 0 0 40px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 1px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    background: #fff;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+  }
+  .payer-toggle.payer-a {
+    background: #eef2ff;
+    color: var(--accent);
+    border-color: #c7d2fe;
+  }
+  .payer-toggle.payer-b {
+    background: #fce7f3;
+    color: var(--accent2);
+    border-color: #fbcfe8;
+  }
+
+  .ratio-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .ratio-wrap input {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 15px;
+    text-align: center;
+    background: #fafbfc;
+  }
+  .ratio-wrap span {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .result-card {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: #fff;
+    border-radius: 16px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .result-card .rtitle {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-bottom: 4px;
+  }
+  .result-card .rvalue {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .result-grid .result-card:nth-child(3),
+  .result-grid .result-card:nth-child(4) {
+    background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+  }
+
+  .summary-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 14px;
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row .label { color: var(--muted); }
+  .summary-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .summary-row.final {
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 2px solid var(--border);
+    border-bottom: none;
+  }
+  .summary-row.final .partner-a { color: var(--accent); }
+  .summary-row.final .partner-b { color: var(--accent2); }
+
+  .detail-list {
+    margin: 8px 0;
+  }
+  .detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px dashed #f3f4f6;
+    color: var(--muted);
+  }
+  .detail-item:last-child { border-bottom: none; }
+  .detail-item .d-name { flex: 1; }
+  .detail-item .d-note { color: #9ca3af; font-size: 12px; margin-left: 6px; }
+  .detail-item .d-payer {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-right: 6px;
+  }
+  .detail-item .d-payer.payer-a { background: #eef2ff; color: var(--accent); }
+  .detail-item .d-payer.payer-b { background: #fce7f3; color: var(--accent2); }
+  .detail-item .d-amt { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+
+  .btn-calc {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #fff;
+    padding: 12px 16px 28px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+    z-index: 100;
+  }
+  .btn-calc button {
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    display: block;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-calc button:active { opacity: 0.9; }
+
+  .detail-section {
+    margin-top: 6px;
+  }
+  .detail-title {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 10px 0 6px;
+  }
+
+  .formula-box {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-top: 10px;
+  }
+  .formula-box code {
+    background: #eef2ff;
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  @media (max-width: 360px) {
+    .input-row input.amount { flex: 0 0 68px; width: 68px; }
+    .input-row input.note { flex: 0 0 38px; min-width: 0; }
+    .input-row input[type="text"] { padding: 10px 5px; font-size: 13px; }
+    .btn-remove { flex: 0 0 20px; padding: 0 1px; font-size: 16px; }
+    .payer-toggle { flex: 0 0 36px; font-size: 10px; padding: 8px 0px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>💄 医美合作分账工具</h1>
+
+  <div class="card">
+    <div class="card-title partner-a">👤 BJQ — 营收</div>
+    <div id="a-revenue"></div>
+    <button class="btn-add" onclick="addRow('a-revenue')">+ 添加一笔营收</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title partner-a">👤 BJQ — 垫付</div>
+    <div id="a-advance"></div>
+    <button class="btn-add" onclick="addRow('a-advance')">+ 添加一笔垫付</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title partner-b">👤 PQ — 营收</div>
+    <div id="b-revenue"></div>
+    <button class="btn-add" onclick="addRow('b-revenue')">+ 添加一笔营收</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title partner-b">👤 PQ — 垫付</div>
+    <div id="b-advance"></div>
+    <button class="btn-add" onclick="addRow('b-advance')">+ 添加一笔垫付</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title operator">✂️ 操作师费用（运营成本，点击按钮切换垫付人）</div>
+    <div id="operator-fee"></div>
+    <button class="btn-add" onclick="addRow('operator-fee')">+ 添加一笔操作师费用</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title salon">🏥 黑心老板 — 代收</div>
+    <div id="salon-collect"></div>
+    <button class="btn-add" onclick="addRow('salon-collect')">+ 添加一笔代收</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title salon">🏥 黑心老板返款比例设置</div>
+    <div class="ratio-wrap">
+      <input type="text" id="salon-ratio" value="30" placeholder="比例" inputmode="decimal">
+      <span>% 返款给黑心老板</span>
+    </div>
+    <div class="formula-box">
+      计算逻辑：<br>
+      <code>总营收</code> = BJQ营收 + PQ营收 + 黑心老板代收<br>
+      <code>返款</code> = 总营收 × 比例<br>
+      <code>返款后收入</code> = 总营收 − 返款<br>
+      <code>净利润</code> = 返款后收入 − 操作师费用 − 总垫付<br>
+      <code>每人利润</code> = 净利润 ÷ 2<br>
+      <code>BJQ/PQ 最终</code> = 每人利润 + 各自垫付 + 各自垫付的操作师费用
+    </div>
+  </div>
+
+  <div id="results" style="display:none;">
+    <div class="result-grid">
+      <div class="result-card">
+        <div class="rtitle">总营收（含代收）</div>
+        <div class="rvalue" id="r-total-revenue">¥0</div>
+      </div>
+      <div class="result-card">
+        <div class="rtitle">返款给黑心老板</div>
+        <div class="rvalue" id="r-salon">¥0</div>
+      </div>
+      <div class="result-card">
+        <div class="rtitle">返款后收入</div>
+        <div class="rvalue" id="r-after-salon">¥0</div>
+      </div>
+      <div class="result-card">
+        <div class="rtitle">总运营成本</div>
+        <div class="rvalue" id="r-total-cost">¥0</div>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-row">
+        <span class="label">BJQ 营收合计</span>
+        <span class="value partner-a" id="s-a-rev">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">PQ 营收合计</span>
+        <span class="value partner-b" id="s-b-rev">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">黑心老板代收合计</span>
+        <span class="value salon" id="s-salon-collect">¥0</span>
+      </div>
+
+      <div class="detail-title">操作师费用明细</div>
+      <div class="detail-list" id="d-operator-fee"></div>
+      <div class="summary-row">
+        <span class="label">操作师费用合计</span>
+        <span class="value operator" id="s-operator-fee">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">其中 BJQ 垫付</span>
+        <span class="value partner-a" id="s-operator-fee-a">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">其中 PQ 垫付</span>
+        <span class="value partner-b" id="s-operator-fee-b">¥0</span>
+      </div>
+
+      <div class="detail-title">BJQ 垫付明细</div>
+      <div class="detail-list" id="d-a-advance"></div>
+      <div class="summary-row">
+        <span class="label">BJQ 垫付合计</span>
+        <span class="value partner-a" id="s-a-adv">¥0</span>
+      </div>
+
+      <div class="detail-title">PQ 垫付明细</div>
+      <div class="detail-list" id="d-b-advance"></div>
+      <div class="summary-row">
+        <span class="label">PQ 垫付合计</span>
+        <span class="value partner-b" id="s-b-adv">¥0</span>
+      </div>
+
+      <div class="summary-row" style="border-top:1px solid var(--border); margin-top:4px; padding-top:10px;">
+        <span class="label">总营收</span>
+        <span class="value" id="s-total-rev">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">返款给黑心老板</span>
+        <span class="value" id="s-salon-return">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">返款后收入</span>
+        <span class="value" id="s-after-salon">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">操作师费用</span>
+        <span class="value operator" id="s-operator">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">总垫付</span>
+        <span class="value" id="s-total-advance">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">总运营成本</span>
+        <span class="value" id="s-total-cost">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">净利润</span>
+        <span class="value" id="s-net">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">每人应分利润（50%）</span>
+        <span class="value" id="s-each-profit">¥0</span>
+      </div>
+      <div class="summary-row final">
+        <span class="label partner-a">👤 BJQ 最终结算</span>
+        <span class="value partner-a" id="s-a-final">¥0</span>
+      </div>
+      <div class="summary-row final">
+        <span class="label partner-b">👤 PQ 最终结算</span>
+        <span class="value partner-b" id="s-b-final">¥0</span>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <div class="card-title" style="font-size:16px; margin-bottom:14px;">💸 转账结算（钱分别保管）</div>
+      <div class="summary-row">
+        <span class="label">BJQ 自己营收</span>
+        <span class="value partner-a" id="t-a-hold">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">BJQ 分摊返款</span>
+        <span class="value" id="t-a-return">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">BJQ 净持有（扣除返款）</span>
+        <span class="value partner-a" id="t-a-net">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">BJQ 应得金额</span>
+        <span class="value partner-a" id="t-a-should">¥0</span>
+      </div>
+      <div class="summary-row" style="border-bottom:none; padding-bottom:4px;">
+        <span class="label">BJQ 差额</span>
+        <span class="value" id="t-a-diff">¥0</span>
+      </div>
+      <div class="summary-row" style="border-top:1px solid var(--border); margin-top:4px; padding-top:10px;">
+        <span class="label">PQ 自己营收</span>
+        <span class="value partner-b" id="t-b-hold">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">PQ 分摊返款</span>
+        <span class="value" id="t-b-return">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">PQ 净持有（扣除返款）</span>
+        <span class="value partner-b" id="t-b-net">¥0</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">PQ 应得金额</span>
+        <span class="value partner-b" id="t-b-should">¥0</span>
+      </div>
+      <div class="summary-row" style="border-bottom:none; padding-bottom:4px;">
+        <span class="label">PQ 差额</span>
+        <span class="value" id="t-b-diff">¥0</span>
+      </div>
+      <div class="summary-row final" style="background:#f9fafb; border-radius:10px; padding:12px; margin-top:10px;">
+        <span class="label" id="t-direction-label">转账方向</span>
+        <span class="value" id="t-amount" style="font-size:18px;">¥0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="btn-calc">
+  <button onclick="calculate()">🧮 开始分账计算</button>
+</div>
+
+<script>
+  const defaults = {
+    'a-revenue': [{name:'营收1', note:'', amount:''}],
+    'a-advance': [{name:'垫付1', note:'', amount:''}],
+    'b-revenue': [{name:'营收1', note:'', amount:''}],
+    'b-advance': [{name:'垫付1', note:'', amount:''}],
+    'operator-fee': [
+      {name:'操作费1', note:'', amount:'', payer:'a'},
+      {name:'操作费2', note:'', amount:'', payer:'b'}
+    ],
+    'salon-collect': [{name:'代收1', note:'', amount:''}],
+  };
+  const hasNote = { 'a-advance': true, 'b-advance': true, 'operator-fee': true };
+  const hasPayer = { 'operator-fee': true };
+  Object.keys(defaults).forEach(k => render(k));
+
+  function render(containerId) {
+    const el = document.getElementById(containerId);
+    const list = defaults[containerId];
+    const showNote = hasNote[containerId];
+    const showPayer = hasPayer[containerId];
+    el.innerHTML = '';
+    list.forEach((item, idx) => {
+      const row = document.createElement('div');
+      row.className = 'input-row';
+      let html = '';
+      if (showNote) {
+        html += `<input type="text" class="item" placeholder="事项" value="${item.name}" onchange="updateName('${containerId}',${idx},this.value)">`;
+        html += `<input type="text" class="note" placeholder="备注" value="${item.note}" onchange="updateNote('${containerId}',${idx},this.value)">`;
+      } else {
+        html += `<input type="text" placeholder="项目/备注" value="${item.name}" onchange="updateName('${containerId}',${idx},this.value)">`;
+      }
+      if (showPayer) {
+        const payerClass = item.payer === 'b' ? 'payer-b' : 'payer-a';
+        const payerText = item.payer === 'b' ? 'PQ' : 'BJQ';
+        html += `<button class="payer-toggle ${payerClass}" onclick="togglePayer('${containerId}',${idx})">${payerText}</button>`;
+      }
+      html += `<input type="text" class="amount" placeholder="金额" value="${item.amount}" inputmode="decimal" onchange="updateAmount('${containerId}',${idx},this.value)">`;
+      if (list.length > 1) {
+        html += `<button class="btn-remove" onclick="removeRow('${containerId}',${idx})">&times;</button>`;
+      }
+      row.innerHTML = html;
+      el.appendChild(row);
+    });
+  }
+
+  function addRow(containerId) {
+    const newItem = {name:'项目'+(defaults[containerId].length+1), note:'', amount:''};
+    if (hasPayer[containerId]) {
+      newItem.payer = 'a';
+    }
+    defaults[containerId].push(newItem);
+    render(containerId);
+  }
+  function removeRow(containerId, idx) {
+    defaults[containerId].splice(idx,1);
+    render(containerId);
+  }
+  function updateName(containerId, idx, val) { defaults[containerId][idx].name = val; }
+  function updateNote(containerId, idx, val) { defaults[containerId][idx].note = val; }
+  function updateAmount(containerId, idx, val) { defaults[containerId][idx].amount = val; }
+  function togglePayer(containerId, idx) {
+    const item = defaults[containerId][idx];
+    item.payer = item.payer === 'b' ? 'a' : 'b';
+    render(containerId);
+  }
+
+  function parseMoney(v) {
+    v = String(v).replace(/,/g, '').trim();
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+  function fmt(n) {
+    return '¥' + n.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function renderDetailList(containerId, targetId, showPayerInfo) {
+    const list = defaults[containerId].filter(i => parseMoney(i.amount) > 0);
+    const el = document.getElementById(targetId);
+    if (list.length === 0) {
+      el.innerHTML = '<div class="detail-item"><span class="d-name">暂无记录</span></div>';
+      return;
+    }
+    el.innerHTML = list.map(i => {
+      const note = i.note ? `<span class="d-note">${i.note}</span>` : '';
+      let payerTag = '';
+      if (showPayerInfo && i.payer) {
+        const payerClass = i.payer === 'b' ? 'payer-b' : 'payer-a';
+        const payerText = i.payer === 'b' ? 'PQ' : 'BJQ';
+        payerTag = `<span class="d-payer ${payerClass}">${payerText}</span>`;
+      }
+      return `<div class="detail-item"><span class="d-name">${payerTag}${i.name}${note}</span><span class="d-amt">${fmt(parseMoney(i.amount))}</span></div>`;
+    }).join('');
+  }
+
+  function calculate() {
+    const aRev = defaults['a-revenue'].reduce((s,i)=>s+parseMoney(i.amount),0);
+    const bRev = defaults['b-revenue'].reduce((s,i)=>s+parseMoney(i.amount),0);
+    const aAdv = defaults['a-advance'].reduce((s,i)=>s+parseMoney(i.amount),0);
+    const bAdv = defaults['b-advance'].reduce((s,i)=>s+parseMoney(i.amount),0);
+
+    const operatorFees = defaults['operator-fee'];
+    const operatorFeeTotal = operatorFees.reduce((s,i)=>s+parseMoney(i.amount),0);
+    const operatorFeeA = operatorFees.filter(i=>i.payer==='a').reduce((s,i)=>s+parseMoney(i.amount),0);
+    const operatorFeeB = operatorFees.filter(i=>i.payer==='b').reduce((s,i)=>s+parseMoney(i.amount),0);
+
+    const salonCollect = defaults['salon-collect'].reduce((s,i)=>s+parseMoney(i.amount),0);
+    const ratio = parseMoney(document.getElementById('salon-ratio').value);
+
+    const totalRevenue = aRev + bRev + salonCollect;
+    const salonReturn = totalRevenue * (ratio / 100);
+    const afterSalon = totalRevenue - salonReturn;
+    const totalAdvance = aAdv + bAdv;
+    const totalCost = operatorFeeTotal + totalAdvance;
+    const net = afterSalon - totalCost;
+    const eachProfit = net / 2;
+    const aFinal = eachProfit + aAdv + operatorFeeA;
+    const bFinal = eachProfit + bAdv + operatorFeeB;
+
+    // 转账逻辑：返款按合伙人营收比例分摊
+    const partnerRevenue = aRev + bRev;
+    let aReturnShare, bReturnShare;
+    if (partnerRevenue > 0) {
+      aReturnShare = (aRev / partnerRevenue) * salonReturn;
+      bReturnShare = (bRev / partnerRevenue) * salonReturn;
+    } else {
+      aReturnShare = salonReturn / 2;
+      bReturnShare = salonReturn / 2;
+    }
+
+    const aNetHold = aRev - aReturnShare;
+    const bNetHold = bRev - bReturnShare;
+    const aDiff = aNetHold - aFinal;
+    const bDiff = bNetHold - bFinal;
+    const transferAmount = Math.abs(aDiff);
+
+    document.getElementById('r-total-revenue').textContent = fmt(totalRevenue);
+    document.getElementById('r-salon').textContent = fmt(salonReturn);
+    document.getElementById('r-after-salon').textContent = fmt(afterSalon);
+    document.getElementById('r-total-cost').textContent = fmt(totalCost);
+
+    document.getElementById('s-a-rev').textContent = fmt(aRev);
+    document.getElementById('s-b-rev').textContent = fmt(bRev);
+    document.getElementById('s-salon-collect').textContent = fmt(salonCollect);
+    document.getElementById('s-operator-fee').textContent = fmt(operatorFeeTotal);
+    document.getElementById('s-operator-fee-a').textContent = fmt(operatorFeeA);
+    document.getElementById('s-operator-fee-b').textContent = fmt(operatorFeeB);
+    document.getElementById('s-a-adv').textContent = fmt(aAdv);
+    document.getElementById('s-b-adv').textContent = fmt(bAdv);
+    document.getElementById('s-total-rev').textContent = fmt(totalRevenue);
+    document.getElementById('s-salon-return').textContent = fmt(salonReturn);
+    document.getElementById('s-after-salon').textContent = fmt(afterSalon);
+    document.getElementById('s-operator').textContent = fmt(operatorFeeTotal);
+    document.getElementById('s-total-advance').textContent = fmt(totalAdvance);
+    document.getElementById('s-total-cost').textContent = fmt(totalCost);
+    document.getElementById('s-net').textContent = fmt(net);
+    document.getElementById('s-each-profit').textContent = fmt(eachProfit);
+    document.getElementById('s-a-final').textContent = fmt(aFinal);
+    document.getElementById('s-b-final').textContent = fmt(bFinal);
+
+    document.getElementById('t-a-hold').textContent = fmt(aRev);
+    document.getElementById('t-a-return').textContent = fmt(aReturnShare);
+    document.getElementById('t-a-net').textContent = fmt(aNetHold);
+    document.getElementById('t-a-should').textContent = fmt(aFinal);
+    document.getElementById('t-b-hold').textContent = fmt(bRev);
+    document.getElementById('t-b-return').textContent = fmt(bReturnShare);
+    document.getElementById('t-b-net').textContent = fmt(bNetHold);
+    document.getElementById('t-b-should').textContent = fmt(bFinal);
+    document.getElementById('t-a-diff').textContent = (aDiff >= 0 ? '+' : '') + fmt(aDiff) + (aDiff > 0 ? '（多拿）' : aDiff < 0 ? '（少拿）' : '');
+    document.getElementById('t-b-diff').textContent = (bDiff >= 0 ? '+' : '') + fmt(bDiff) + (bDiff > 0 ? '（多拿）' : bDiff < 0 ? '（少拿）' : '');
+
+    if (aDiff > 0) {
+      document.getElementById('t-direction-label').textContent = 'BJQ 需转给 PQ';
+      document.getElementById('t-direction-label').className = 'label partner-a';
+      document.getElementById('t-amount').className = 'value partner-b';
+    } else if (aDiff < 0) {
+      document.getElementById('t-direction-label').textContent = 'PQ 需转给 BJQ';
+      document.getElementById('t-direction-label').className = 'label partner-b';
+      document.getElementById('t-amount').className = 'value partner-a';
+    } else {
+      document.getElementById('t-direction-label').textContent = '无需转账';
+      document.getElementById('t-direction-label').className = 'label';
+      document.getElementById('t-amount').className = 'value';
+    }
+    document.getElementById('t-amount').textContent = fmt(transferAmount);
+
+    renderDetailList('operator-fee', 'd-operator-fee', true);
+    renderDetailList('a-advance', 'd-a-advance', false);
+    renderDetailList('b-advance', 'd-b-advance', false);
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('results').scrollIntoView({behavior:'smooth'});
+  }
+</script>
+</body>
+</html>

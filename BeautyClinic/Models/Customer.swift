@@ -52,6 +52,44 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         guard let prefs = preferences, !prefs.isEmpty else { return "无备注" }
         return prefs.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
     }
+    
+    init(
+        id: UUID,
+        phone: String,
+        name: String,
+        gender: String? = nil,
+        birthdate: Date? = nil,
+        medicalHistory: String? = nil,
+        preferences: [String: String]? = nil,
+        photoUrl: String? = nil,
+        associatedStoreId: UUID? = nil,
+        createdBy: UUID? = nil,
+        lastVisit: Date? = nil,
+        outstandingAmount: Double? = nil,
+        conversionProbability: Int? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.phone = phone
+        self.name = name
+        self.gender = gender
+        self.birthdate = birthdate
+        self.medicalHistory = medicalHistory
+        self.preferences = preferences
+        self.photoUrl = photoUrl
+        self.associatedStoreId = associatedStoreId
+        self.createdBy = createdBy
+        self.lastVisit = lastVisit
+        self.outstandingAmount = outstandingAmount
+        self.conversionProbability = conversionProbability
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+        guard let prefs = preferences, !prefs.isEmpty else { return "无备注" }
+        return prefs.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
+    }
 }
 
 struct CustomerInsert: Codable, Sendable {
