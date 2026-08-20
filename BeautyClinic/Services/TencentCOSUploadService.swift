@@ -110,7 +110,7 @@ enum TencentCOSUploadService {
         let httpURI = "/\(encodedKey)"
         let httpParameters = "" // No query params
         let host = "\(COSConfig.bucket).cos.\(COSConfig.region).myqcloud.com"
-        let contentTypeEncoded = "image/jpeg".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "image/jpeg"
+        let contentTypeEncoded = "image/jpeg".replacingOccurrences(of: "/", with: "%2F")
         let httpHeaders = "content-type=\(contentTypeEncoded)&host=\(host)"
         let httpString = "\(httpMethod)\n\(httpURI)\n\(httpParameters)\n\(httpHeaders)\n"
         
