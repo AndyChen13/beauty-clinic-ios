@@ -30,6 +30,9 @@ create table stores (
   phone text,
   status text default 'active' check (status in ('active', 'pending', 'closed')),
   manager_id uuid,  -- FK added below after users exists
+  image_url text,
+  created_at timestamptz default now(),
+  manager_id uuid,  -- FK added below after users exists
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
