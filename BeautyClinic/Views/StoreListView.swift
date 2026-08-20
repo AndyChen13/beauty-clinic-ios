@@ -37,7 +37,12 @@ struct StoreListView: View {
                 } else {
                     List {
                         ForEach(stores) { store in
-                            StoreRow(store: store, users: users)
+                            NavigationLink {
+                                StoreDetailView(store: store, users: users)
+                                    .environmentObject(userState)
+                            } label: {
+                                StoreRow(store: store, users: users)
+                            }
                         }
                         .onDelete(perform: deleteStore)
                     }
