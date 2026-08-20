@@ -79,6 +79,9 @@ struct StoreListView: View {
                 Text(errorMessage)
             }
         }
+        .onAppear {
+            Task { await loadData() }
+        }
     }
     
     private func loadData() async {
@@ -395,6 +398,16 @@ struct StoreEditView: View {
                     await loadAndUploadPhoto(item: newItem)
                 }
             }
+            .onAppear {
+                if case .edit(let store) = mode {
+                    name = store.name
+                    address = store.address ?? ""
+                    phone = store.phone ?? ""
+                    status = store.status
+                    managerId = store.managerId
+                    imageUrl = store.imageUrl
+                }
+            }
         }
     }
     
@@ -485,34 +498,65 @@ struct StoreEditView: View {
     
     private func saveStore() {
         guard !name.isEmpty else { return }
-        
         isSaving = true
         
         Task {
             do {
-                let storeData = StoreInsert(
-                    name: name,
-                    address: address.isEmpty ? nil : address,
-                    phone: phone.isEmpty ? nil : phone,
-                    status: status,
-                    managerId: managerId,
-                    imageUrl: imageUrl
-                )
-                
-                let created: [Store] = try await supabase
-                    .from("stores")
-                    .insert(storeData)
-                    .select()
-                    .execute()
-                    .value
-                
-                onSave(created.first!)
-                dismiss()
+                switch mode {
+                case .create:
+                    let storeData = StoreInsert(
+                        name: name,
+                        address: address.isEmpty ? nil : address,
+                        phone: phone.isEmpty ? nil : phone,
+                        status: status,
+                        managerId: managerId,
+                        imageUrl: imageUrl
+                    )
+                    
+                    let created: [Store] = try await supabase
+                        .from("stores")
+                        .insert(storeData)
+                        .select()
+                        .execute()
+                        .value
+                    
+                    await MainActor.run {
+                        onSave(created.first!)
+                        dismiss()
+                    }
+                    
+                case .edit(let existingStore):
+                    let updateData = StoreInsert(
+                        name: name,
+                        address: address.isEmpty ? nil : address,
+                        phone: phone.isEmpty ? nil : phone,
+                        status: status,
+                        managerId: managerId,
+                        imageUrl: imageUrl
+                    )
+                    
+                    let updated: [Store] = try await supabase
+                        .from("stores")
+                        .update(updateData)
+                        .eq("id", value: existingStore.id)
+                        .select()
+                        .execute()
+                        .value
+                    
+                    await MainActor.run {
+                        onSave(updated.first!)
+                        dismiss()
+                    }
+                }
             } catch {
-                errorMessage = error.localizedDescription
-                showError = true
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
             }
-            isSaving = false
+            await MainActor.run {
+                isSaving = false
+            }
         }
     }
 }

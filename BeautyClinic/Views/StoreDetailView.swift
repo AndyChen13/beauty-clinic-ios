@@ -2,9 +2,10 @@
 import SwiftUI
 
 struct StoreDetailView: View {
-    let store: Store
+    @State var store: Store
     let users: [User]
     @EnvironmentObject var userState: UserState
+    @State private var showingEditSheet = false
     
     private var managerName: String {
         if let managerId = store.managerId,
@@ -76,6 +77,21 @@ struct StoreDetailView: View {
         }
         .navigationTitle(store.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if userState.isAdmin {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("编辑") {
+                        showingEditSheet = true
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            StoreEditView(mode: .edit(store), users: users) { updatedStore in
+                store = updatedStore
+            }
+            .environmentObject(userState)
+        }
     }
 }
 
