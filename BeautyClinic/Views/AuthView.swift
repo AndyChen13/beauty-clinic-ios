@@ -212,7 +212,7 @@ struct AuthView: View {
                     password: password
                 )
                 
-                guard let userId = authResponse.user?.id else {
+                guard let userId = authResponse.user.id else {
                     throw NSError(domain: "Register", code: -1, userInfo: [NSLocalizedDescriptionKey: "创建用户失败"])
                 }
                 
