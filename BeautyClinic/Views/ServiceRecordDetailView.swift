@@ -14,7 +14,7 @@ struct ServiceRecordDetailView: View {
                 VStack(spacing: 12) {
                     HStack {
                         Image(systemName: "calendar")
-                            .foregroundStyle(.accent)
+                            .foregroundColor(.accentColor)
                         Text(record.serviceDate.formatted(date: .long, time: .shortened))
                             .font(.headline)
                         Spacer()
@@ -188,10 +188,34 @@ struct PhotoViewer: View {
                     switch phase {
                     case .empty:
                         ProgressView()
+                            .tint(.white)
                     case .success(let image):
                         image
                             .resizable()
-                            .scaledToFit
+                            .scaledToFit()
+                    case .failure:
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.largeTitle)
+                                .foregroundColor(.white)
+                            Text("加载失败，无法访问图片")
+                                .foregroundColor(.white)
+                        }
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+            .toolbar {
+                Color.black.ignoresSafeArea()
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
                     case .failure:
                         VStack {
                             Image(systemName: "exclamationmark.triangle")
