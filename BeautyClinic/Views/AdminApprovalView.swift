@@ -100,7 +100,7 @@ struct AdminApprovalView: View {
                     .update([
                         "status": "approved",
                         "admin_notes": adminNote,
-                        "processed_by": userState.currentUser?.id?.uuidString ?? "",
+                        "processed_by": userState.currentUser?.id.uuidString ?? "",
                         "processed_at": ISO8601DateFormatter().string(from: Date())
                     ])
                     .eq("id", value: request.id)
@@ -126,7 +126,7 @@ struct AdminApprovalView: View {
                     .update([
                         "status": "rejected",
                         "admin_notes": adminNote,
-                        "processed_by": userState.currentUser?.id?.uuidString ?? "",
+                        "processed_by": userState.currentUser?.id.uuidString ?? "",
                         "processed_at": ISO8601DateFormatter().string(from: Date())
                     ])
                     .eq("id", value: request.id)
