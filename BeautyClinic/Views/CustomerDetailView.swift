@@ -10,6 +10,7 @@ struct CustomerDetailView: View {
     @State private var isLoading = false
     @State private var isEditing = false
     @State private var showingServiceSheet = false
+    @State private var selectedRecord: ServiceRecord?
     
     private var storeName: String {
         if let storeId = customer.associatedStoreId,
@@ -297,7 +298,12 @@ struct CustomerDetailView: View {
                     .padding(.vertical, 20)
             } else {
                 ForEach(serviceRecords.prefix(5)) { record in
-                    ServiceRecordRow(record: record)
+                    Button {
+                        selectedRecord = record
+                    } label: {
+                        ServiceRecordRow(record: record)
+                    }
+                    .buttonStyle(.plain)
                 }
                 
                 if serviceRecords.count > 5 {
@@ -311,6 +317,11 @@ struct CustomerDetailView: View {
         .padding()
         .background(Color(UIColor.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .sheet(item: $selectedRecord) { record in
+            NavigationStack {
+                ServiceRecordDetailView(record: record)
+            }
+        }
     }
     
     private func loadTransactions() async {

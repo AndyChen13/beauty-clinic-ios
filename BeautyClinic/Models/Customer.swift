@@ -99,12 +99,16 @@ struct CustomerInsert: Codable, Sendable {
     let medicalHistory: String?
     let preferences: [String: String]?
     let associatedStoreId: UUID?
+    let outstandingAmount: Double?
+    let conversionProbability: Int?
     
     enum CodingKeys: String, CodingKey {
         case phone, name, gender, birthdate
         case medicalHistory = "medical_history"
         case preferences
         case associatedStoreId = "associated_store_id"
+        case outstandingAmount = "outstanding_amount"
+        case conversionProbability = "conversion_probability"
     }
 }
 
