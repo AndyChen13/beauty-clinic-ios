@@ -215,10 +215,6 @@ struct AuthView: View {
                 let userId = authResponse.user.id
                 
                 // 2. Insert into users table (role defaults to 'staff')
-                    throw NSError(domain: "Register", code: -1, userInfo: [NSLocalizedDescriptionKey: "创建用户失败"])
-                }
-                
-                // 2. Insert into users table (role defaults to 'staff')
                 let userInsert = UserInsert(
                     id: userId,
                     email: email,
