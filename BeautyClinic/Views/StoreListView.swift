@@ -217,6 +217,9 @@ struct StoreRow: View {
 struct StoreAvatarView: View {
     let imageUrl: String?
     let status: StoreStatus
+    var size: CGFloat = 48
+    let imageUrl: String?
+    let status: StoreStatus
     let size: CGFloat = 48
     
     var body: some View {
