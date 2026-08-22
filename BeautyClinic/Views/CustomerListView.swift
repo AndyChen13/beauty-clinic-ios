@@ -164,11 +164,27 @@ struct CustomerListView: View {
     private func performDelete(_ customer: Customer) {
         Task {
             do {
+                // 1. 先删除关联的服务记录
+                _ = try await supabase
+                    .from("service_records")
+                    .delete()
+                    .eq("customer_id", value: customer.id)
+                    .execute()
+                
+                // 2. 删除关联的照片记录
+                _ = try await supabase
+                    .from("customer_photos")
+                    .delete()
+                    .eq("customer_id", value: customer.id)
+                    .execute()
+                
+                // 3. 最后删除客户
                 _ = try await supabase
                     .from("customers")
                     .delete()
                     .eq("id", value: customer.id)
                     .execute()
+                
                 await MainActor.run {
                     customers.removeAll { $0.id == customer.id }
                     deleteTargetCustomer = nil
