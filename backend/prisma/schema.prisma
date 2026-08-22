@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  phone     String?  @unique
+  email     String?  @unique
+  name      String
+  role      String   @default("staff")
+  storeId   String?  @map("store_id") @db.Uuid
+  avatarUrl String?  @map("avatar_url")
+  password  String?  // bcrypt hashed, for phone+password fallback
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  store            Store?            @relation(fields: [storeId], references: [id])
+  createdCustomers Customer[]        @relation("CreatedBy")
+  serviceRecords   ServiceRecord[]   @relation("Operator")
+  deletionRequests DeletionRequest[] @relation("Requester")
+  processedRequests DeletionRequest[] @relation("ProcessedBy")
+
+  @@map("users")
+}
+
+model Store {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  address   String?
+  phone     String?
+  status    String   @default("pending")
+  managerId String?  @map("manager_id") @db.Uuid
+  imageUrl  String?  @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  customers    Customer[]
+  transactions Transaction[]
+  users        User[]
+
+  @@map("stores")
+}
+
+model Customer {
+  id                   String   @id @default(uuid()) @db.Uuid
+  phone                String
+  name                 String
+  gender               String?
+  birthdate            String?
+  medicalHistory       String?  @map("medical_history")
+  preferences          Json?    @db.JsonB
+  photoUrl             String?  @map("photo_url")
+  associatedStoreId    String?  @map("associated_store_id") @db.Uuid
+  createdBy            String?  @map("created_by") @db.Uuid
+  lastVisit            DateTime? @map("last_visit")
+  firstTransactionAmount Float?  @map("first_transaction_amount")
+  amountReceived       Float?   @map("amount_received")
+  outstandingAmount    Float?   @map("outstanding_amount")
+  conversionProbability Int?    @map("conversion_probability")
+  remainingSessions    Int?     @map("remaining_sessions")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  store          Store?           @relation(fields: [associatedStoreId], references: [id])
+  creator        User?            @relation("CreatedBy", fields: [createdBy], references: [id])
+  photos         CustomerPhoto[]
+  serviceRecords ServiceRecord[]
+  transactions   Transaction[]
+
+  @@map("customers")
+}
+
+model CustomerPhoto {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  photoUrl   String   @map("photo_url")
+  photoType  String   @map("photo_type") @default("progress")
+  notes      String?
+  uploadedBy String?  @map("uploaded_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_photos")
+}
+
+model ServiceRecord {
+  id                String   @id @default(uuid()) @db.Uuid
+  customerId        String   @map("customer_id") @db.Uuid
+  transactionId     String?  @map("transaction_id") @db.Uuid
+  serviceDate       DateTime @map("service_date")
+  operatorId        String?  @map("operator_id") @db.Uuid
+  operatorName      String?  @map("operator_name")
+  operatorPhone     String?  @map("operator_phone")
+  bodyPart          String?  @map("body_part")
+  photos            String[]
+  customerFeedback  String?  @map("customer_feedback")
+  extraPayment      Float    @default(0) @map("extra_payment")
+  extraPaymentNote  String?  @map("extra_payment_note")
+  sessionsUsed      Int      @map("sessions_used")
+  remainingSessions Int?     @map("remaining_sessions")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  operator    User?        @relation("Operator", fields: [operatorId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@map("service_records")
+}
+
+model Transaction {
+  id                    String   @id @default(uuid()) @db.Uuid
+  customerId            String   @map("customer_id") @db.Uuid
+  storeId               String   @map("store_id") @db.Uuid
+  packageId             String   @map("package_id") @db.Uuid
+  staffUserId           String?  @map("staff_user_id") @db.Uuid
+  amount                Float
+  totalSessions         Int      @map("total_sessions")
+  completedSessions     Int      @default(0) @map("completed_sessions")
+  transactionDate       DateTime @map("transaction_date")
+  firstDeliveryDate     DateTime? @map("first_delivery_date")
+  estimatedCompletionDate DateTime? @map("estimated_completion_date")
+  status                String   @default("pending")
+  notes                 String?
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store      Store           @relation(fields: [storeId], references: [id])
+  package    ServicePackage  @relation(fields: [packageId], references: [id])
+  deliveries Delivery[]
+  serviceRecords ServiceRecord[]
+
+  @@map("transactions")
+}
+
+model Delivery {
+  id           String   @id @default(uuid()) @db.Uuid
+  transactionId String  @map("transaction_id") @db.Uuid
+  customerId   String   @map("customer_id") @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  staffUserId  String?  @map("staff_user_id") @db.Uuid
+  sessionNumber Int     @map("session_number")
+  deliveryDate DateTime @map("delivery_date")
+  notes        String?
+  photos       String[]
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("deliveries")
+}
+
+model ServicePackage {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  description       String?
+  category          String   @default("other")
+  price             Float
+  durationMinutes   Int      @map("duration_minutes")
+  totalSessions     Int      @map("total_sessions")
+  imageUrl          String?  @map("image_url")
+  trainingMaterials String[] @map("training_materials")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  transactions     Transaction[]
+  trainingMats     TrainingMaterial[]
+
+  @@map("service_packages")
+}
+
+model TrainingMaterial {
+  id          String   @id @default(uuid()) @db.Uuid
+  packageId   String?  @map("package_id") @db.Uuid
+  title       String
+  version     String
+  fileUrl     String   @map("file_url")
+  fileType    String   @default("pdf") @map("file_type")
+  description String?
+  uploadedBy  String?  @map("uploaded_by") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  package ServicePackage? @relation(fields: [packageId], references: [id])
+
+  @@map("training_materials")
+}
+
+model DeletionRequest {
+  id          String   @id @default(uuid()) @db.Uuid
+  requesterId String   @map("requester_id") @db.Uuid
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id") @db.Uuid
+  targetName  String?  @map("target_name")
+  reason      String?
+  status      String   @default("pending")
+  adminNotes  String?  @map("admin_notes")
+  processedBy String?  @map("processed_by") @db.Uuid
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  requester User? @relation("Requester", fields: [requesterId], references: [id])
+  processor User? @relation("ProcessedBy", fields: [processedBy], references: [id])
+
+  @@map("deletion_requests")
+}
+
+model SmsCode {
+  id        String   @id @default(uuid()) @db.Uuid
+  phone     String
+  code      String
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([phone])
+  @@map("sms_codes")
+}
