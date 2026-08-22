@@ -1,22 +1,7 @@
 // App.swift
 import SwiftUI
-import Supabase
 
-// MARK: - Supabase Configuration
-private let supabaseURL = URL(string: "https://ugwhgxtutochaodgrrqn.supabase.co")!
-private let supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnd2hneHR1dG9jaGFvZGdycnFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNTk3MzIsImV4cCI6MjEwMjczNTczMn0.2kfp-9EwutEyysxIcpINo1eApQn44oTA29qsbETEs7g"
-
-let supabase = SupabaseClient(
-    supabaseURL: supabaseURL,
-    supabaseKey: supabaseKey,
-    options: .init(
-        auth: .init(
-            emitLocalSessionAsInitialSession: true
-        )
-    )
-)
-
-// MARK: - Global User State
+// MARK: - Global User State (replaces Supabase auth)
 @MainActor
 class UserState: ObservableObject {
     @Published var currentUser: User?
@@ -29,23 +14,24 @@ class UserState: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
+        // Check if we have a stored token
+        guard APIConfig.authToken != nil else {
+            currentUser = nil
+            return
+        }
+        
         do {
-            let user = try await supabase.auth.user()
-            let users: [User] = try await supabase
-                .from("users")
-                .select()
-                .eq("id", value: user.id)
-                .execute()
-                .value
-            currentUser = users.first
+            try await AuthService.shared.loadUser()
+            currentUser = AuthService.shared.currentUser
         } catch {
             print("Failed to load user: \(error)")
+            APIConfig.authToken = nil
             currentUser = nil
         }
     }
     
-    func signOut() async {
-        try? await supabase.auth.signOut()
+    func signOut() {
+        AuthService.shared.signOut()
         currentUser = nil
     }
 }

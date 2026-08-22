@@ -1,6 +1,5 @@
 // Views/ContentView.swift
 import SwiftUI
-import Supabase
 
 struct ContentView: View {
     @EnvironmentObject var userState: UserState
@@ -31,7 +30,7 @@ struct ContentView: View {
             // DEBUG 模式：自动注入 mock admin 用户，跳过登录
             let mockUser = User(
                 id: UUID(),
-                email: "admin@beautyclinic.com",
+                email: nil,
                 phone: nil,
                 name: "管理员",
                 role: .admin,
@@ -47,18 +46,25 @@ struct ContentView: View {
             }
             #else
             do {
-                let session = try await supabase.auth.session
-                if !session.accessToken.isEmpty && !session.isExpired {
-                    await userState.loadUser()
-                    isAuthenticated = true
+                if APIConfig.authToken != nil {
+                    try await AuthService.shared.loadUser()
+                    await MainActor.run {
+                        userState.currentUser = AuthService.shared.currentUser
+                        isAuthenticated = true
+                        userState.isLoading = false
+                    }
                 } else {
-                    isAuthenticated = false
+                    await MainActor.run {
+                        isAuthenticated = false
+                        userState.isLoading = false
+                    }
                 }
             } catch {
-                isAuthenticated = false
-            }
-            await MainActor.run {
-                userState.isLoading = false
+                await MainActor.run {
+                    APIConfig.authToken = nil
+                    isAuthenticated = false
+                    userState.isLoading = false
+                }
             }
             #endif
         }

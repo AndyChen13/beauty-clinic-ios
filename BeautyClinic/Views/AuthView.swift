@@ -1,24 +1,34 @@
-// Views/RegisterView.swift
+// Views/AuthView.swift
 import SwiftUI
-import Supabase
 
 enum AuthMode {
-    case login
-    case register
+    case login       // 手机号验证码登录
+    case password    // 密码登录（admin fallback）
+}
+
+enum AuthStep {
+    case inputPhone
+    case inputCode
+    case inputPassword
 }
 
 struct AuthView: View {
     let onAuthSuccess: () -> Void
     
     @State private var mode: AuthMode = .login
-    @State private var email = ""
-    @State private var password = ""
-    @State private var confirmPassword = ""
-    @State private var name = ""
+    @State private var step: AuthStep = .inputPhone
+    
     @State private var phone = ""
+    @State private var code = ""
+    @State private var name = ""
+    @State private var password = ""
+    
     @State private var isProcessing = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var countdown = 0
+    
+    private let codeLength = 6
     
     var body: some View {
         NavigationStack {
@@ -44,75 +54,88 @@ struct AuthView: View {
                 
                 // Mode Toggle
                 Picker("模式", selection: $mode) {
-                    Text("登录").tag(AuthMode.login)
-                    Text("注册").tag(AuthMode.register)
+                    Text("手机验证码").tag(AuthMode.login)
+                    Text("密码登录").tag(AuthMode.password)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
+                .onChange(of: mode) { _, _ in
+                    step = mode == .login ? .inputPhone : .inputPassword
+                    errorMessage = nil
+                    showError = false
+                }
                 
                 // Input Fields
                 VStack(alignment: .leading, spacing: 14) {
-                    // Name (register only)
-                    if mode == .register {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("姓名 *")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            TextField("请输入姓名", text: $name)
-                                .textInputAutocapitalization(.never)
-                                .padding(12)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("手机号")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            TextField("请输入手机号", text: $phone)
-                                .keyboardType(.phonePad)
-                                .padding(12)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .onChange(of: phone) { _, newValue in
-                                    phone = String(newValue.filter { $0.isNumber }.prefix(11))
+                    // Phone (always needed)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("手机号 *")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        TextField("请输入手机号", text: $phone)
+                            .keyboardType(.phonePad)
+                            .textInputAutocapitalization(.never)
+                            .padding(12)
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .onChange(of: phone) { _, newValue in
+                                phone = String(newValue.filter { $0.isNumber }.prefix(11))
+                            }
+                    }
+                    
+                    if mode == .login {
+                        switch step {
+                        case .inputPhone:
+                            EmptyView()
+                            
+                        case .inputCode:
+                            // Name (for new user)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("姓名 *（新用户必填）")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                TextField("请输入姓名", text: $name)
+                                    .textInputAutocapitalization(.never)
+                                    .padding(12)
+                                    .background(Color(UIColor.secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            
+                            // Verification code
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("验证码 *")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 12) {
+                                    TextField("6位验证码", text: $code)
+                                        .keyboardType(.numberPad)
+                                        .padding(12)
+                                        .background(Color(UIColor.secondarySystemBackground))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    
+                                    Button(action: sendCode) {
+                                        Text(countdown > 0 ? "\(countdown)s" : "获取验证码")
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundColor(countdown > 0 || phone.count < 11 ? .gray : .accentColor)
+                                            .frame(width: 100)
+                                            .padding(.vertical, 12)
+                                            .background(Color(UIColor.secondarySystemBackground))
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    }
+                                    .disabled(countdown > 0 || phone.count < 11 || isProcessing)
                                 }
+                            }
+                            
+                        case .inputPassword:
+                            EmptyView()
                         }
-                    }
-                    
-                    // Email
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("邮箱 *")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        TextField("请输入邮箱", text: $email)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                            .padding(12)
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    
-                    // Password
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("密码 *")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        SecureField("请输入密码", text: $password)
-                            .textInputAutocapitalization(.never)
-                            .padding(12)
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    
-                    // Confirm Password (register only)
-                    if mode == .register {
+                    } else {
+                        // Password mode
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("确认密码 *")
+                            Text("密码 *")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            SecureField("请再次输入密码", text: $confirmPassword)
+                            SecureField("请输入密码", text: $password)
                                 .textInputAutocapitalization(.never)
                                 .padding(12)
                                 .background(Color(UIColor.secondarySystemBackground))
@@ -131,13 +154,13 @@ struct AuthView: View {
                 }
                 
                 // Action Button
-                Button(action: mode == .login ? login : register) {
+                Button(action: actionButtonTapped) {
                     HStack {
                         if isProcessing {
                             ProgressView()
                                 .tint(.white)
                         }
-                        Text(mode == .login ? "登 录" : "注 册")
+                        Text(actionButtonTitle)
                             .font(.headline.weight(.semibold))
                     }
                     .foregroundColor(.white)
@@ -161,82 +184,111 @@ struct AuthView: View {
         }
     }
     
+    private var actionButtonTitle: String {
+        if mode == .login {
+            return step == .inputPhone ? "获取验证码" : "登 录"
+        }
+        return "登 录"
+    }
+    
     private var isButtonEnabled: Bool {
-        let base = !email.isEmpty && !password.isEmpty && !isProcessing
-        if mode == .register {
-            return base && !name.isEmpty && password == confirmPassword && password.count >= 6
+        if isProcessing { return false }
+        if phone.count < 11 { return false }
+        
+        if mode == .login {
+            if step == .inputPhone {
+                return true
+            }
+            return code.count == codeLength
+        } else {
+            return !password.isEmpty
         }
-        return base
     }
     
-    private func login() {
-        guard !email.isEmpty, !password.isEmpty else { return }
+    private func actionButtonTapped() {
+        if mode == .login {
+            if step == .inputPhone {
+                sendCode()
+            } else {
+                verifyCode()
+            }
+        } else {
+            passwordLogin()
+        }
+    }
+    
+    private func sendCode() {
+        guard phone.count == 11 else { return }
         isProcessing = true
         errorMessage = nil
         showError = false
         
         Task {
             do {
-                try await supabase.auth.signIn(email: email, password: password)
-                onAuthSuccess()
+                try await AuthService.shared.sendCode(phone: phone)
+                step = .inputCode
+                startCountdown()
+            } catch let error as APIError {
+                errorMessage = error.localizedDescription
+                showError = true
             } catch {
-                errorMessage = "登录失败: \(error.localizedDescription)"
+                errorMessage = "发送验证码失败"
                 showError = true
             }
             isProcessing = false
         }
     }
     
-    private func register() {
-        guard !email.isEmpty, !password.isEmpty, !name.isEmpty else { return }
-        guard password == confirmPassword else {
-            errorMessage = "两次输入的密码不一致"
-            showError = true
-            return
-        }
-        guard password.count >= 6 else {
-            errorMessage = "密码至少需要6位"
-            showError = true
-            return
-        }
-        
+    private func verifyCode() {
+        guard code.count == codeLength else { return }
         isProcessing = true
         errorMessage = nil
         showError = false
         
         Task {
             do {
-                // 1. Create auth user
-                let authResponse = try await supabase.auth.signUp(
-                    email: email,
-                    password: password
-                )
-                
-                let userId = authResponse.user.id
-                
-                // 2. Insert into users table (role defaults to 'staff')
-                let userInsert = UserInsert(
-                    id: userId,
-                    email: email,
-                    name: name,
-                    phone: phone.isEmpty ? nil : phone,
-                    role: .staff,
-                    storeId: nil
-                )
-                
-                let _: [User] = try await supabase
-                    .from("users")
-                    .insert(userInsert)
-                    .select()
-                    .execute()
-                    .value
-                
+                let userName = name.isEmpty ? nil : name
+                try await AuthService.shared.verifyCode(phone: phone, code: code, name: userName)
                 onAuthSuccess()
+            } catch let error as APIError {
+                errorMessage = error.localizedDescription
+                showError = true
             } catch {
-                errorMessage = "注册失败: \(error.localizedDescription)"
+                errorMessage = "登录失败"
                 showError = true
             }
             isProcessing = false
+        }
+    }
+    
+    private func passwordLogin() {
+        guard !password.isEmpty else { return }
+        isProcessing = true
+        errorMessage = nil
+        showError = false
+        
+        Task {
+            do {
+                try await AuthService.shared.loginWithPassword(phone: phone, password: password)
+                onAuthSuccess()
+            } catch let error as APIError {
+                errorMessage = error.localizedDescription
+                showError = true
+            } catch {
+                errorMessage = "登录失败"
+                showError = true
+            }
+            isProcessing = false
+        }
+    }
+    
+    private func startCountdown() {
+        countdown = 60
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            countdown -= 1
+            if countdown <= 0 {
+                timer.invalidate()
+            }
         }
     }
 }
