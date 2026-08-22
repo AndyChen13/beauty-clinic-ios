@@ -14,6 +14,14 @@ struct StoreListView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
+    // Delete blocker alert
+    @State private var showDeleteBlocker = false
+    @State private var blockerTitle = ""
+    @State private var blockerMessage = ""
+    @State private var blockerCanClose = false
+    @State private var blockerStore: Store?
+    @State private var blockerStoreIndex: Int?
+    
     var body: some View {
         NavigationStack {
             Group {
@@ -78,8 +86,19 @@ struct StoreListView: View {
             } message: {
                 Text(errorMessage)
             }
+            .alert(blockerTitle, isPresented: $showDeleteBlocker) {
+                if blockerCanClose {
+                    Button("改为已关闭", role: .none) {
+                        if let store = blockerStore, let index = blockerStoreIndex {
+                            closeStore(store: store, at: index)
+                        }
+                    }
+                }
+                Button("确定", role: .cancel) {}
+            } message: {
+                Text(blockerMessage)
+            }
         }
-
     }
     
     private func loadData() async {
@@ -127,22 +146,97 @@ struct StoreListView: View {
         if userState.isAdmin {
             Task {
                 do {
-                    _ = try await supabase
-                        .from("stores")
-                        .delete()
-                        .eq("id", value: store.id)
+                    // 1. 查询该门店下所有客户
+                    let customers: [Customer] = try await supabase
+                        .from("customers")
+                        .select()
+                        .eq("associated_store_id", value: store.id)
                         .execute()
+                        .value
+                    
+                    guard !customers.isEmpty else {
+                        // 没有客户，直接删除
+                        await performDelete(store: store, at: index)
+                        return
+                    }
+                    
+                    // 2. 查询这些客户的服务记录，检查是否有未完成交付
+                    let customerIds = customers.map { $0.id }
+                    let records: [ServiceRecord] = try await supabase
+                        .from("service_records")
+                        .select()
+                        .in("customer_id", values: customerIds)
+                        .execute()
+                        .value
+                    
+                    let hasPending = records.contains { ($0.remainingSessions ?? 0) > 0 }
+                    let names = customers.map { $0.name }.joined(separator: "、")
+                    
                     await MainActor.run {
-                        stores.remove(at: index)
+                        if hasPending {
+                            blockerTitle = "无法删除门店"
+                            blockerMessage = "该门店下还有未完成交付的客户：\(names)。请先处理完客户交付后再删除门店。"
+                            blockerCanClose = false
+                        } else {
+                            blockerTitle = "无法删除门店"
+                            blockerMessage = "该门店下还有已完成的客户：\(names)。建议将门店状态改为「已关闭」，而不是直接删除。"
+                            blockerCanClose = true
+                        }
+                        blockerStore = store
+                        blockerStoreIndex = index
+                        showDeleteBlocker = true
                     }
                 } catch {
-                    errorMessage = "删除失败: \(error.localizedDescription)"
+                    errorMessage = "检查失败: \(error.localizedDescription)"
                     showError = true
                 }
             }
         } else {
             storeToDelete = store
             showingDeleteRequest = true
+        }
+    }
+    
+    private func performDelete(store: Store, at index: Int) async {
+        do {
+            _ = try await supabase
+                .from("stores")
+                .delete()
+                .eq("id", value: store.id)
+                .execute()
+            await MainActor.run {
+                stores.remove(at: index)
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = "删除失败: \(error.localizedDescription)"
+                showError = true
+            }
+        }
+    }
+    
+    private func closeStore(store: Store, at index: Int) {
+        Task {
+            do {
+                let updated: [Store] = try await supabase
+                    .from("stores")
+                    .update(["status": "closed"])
+                    .eq("id", value: store.id)
+                    .select()
+                    .execute()
+                    .value
+                
+                await MainActor.run {
+                    if let newStore = updated.first {
+                        stores[index] = newStore
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "关闭失败: \(error.localizedDescription)"
+                    showError = true
+                }
+            }
         }
     }
     
