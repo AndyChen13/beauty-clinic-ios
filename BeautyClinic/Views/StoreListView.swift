@@ -22,6 +22,11 @@ struct StoreListView: View {
     @State private var blockerStore: Store?
     @State private var blockerStoreIndex: Int?
     
+    // Delete confirmation (no customers attached)
+    @State private var showDeleteConfirmation = false
+    @State private var confirmStore: Store?
+    @State private var confirmStoreIndex: Int?
+    
     var body: some View {
         NavigationStack {
             Group {
@@ -98,6 +103,18 @@ struct StoreListView: View {
             } message: {
                 Text(blockerMessage)
             }
+            .alert("确认删除", isPresented: $showDeleteConfirmation) {
+                Button("删除", role: .destructive) {
+                    if let store = confirmStore, let index = confirmStoreIndex {
+                        Task {
+                            await performDelete(store: store, at: index)
+                        }
+                    }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("确定要删除门店「\(confirmStore?.name ?? "")」吗？此操作不可撤销。")
+            }
         }
     }
     
@@ -155,8 +172,12 @@ struct StoreListView: View {
                         .value
                     
                     guard !customers.isEmpty else {
-                        // 没有客户，直接删除
-                        await performDelete(store: store, at: index)
+                        // 没有客户，弹窗确认后删除
+                        await MainActor.run {
+                            confirmStore = store
+                            confirmStoreIndex = index
+                            showDeleteConfirmation = true
+                        }
                         return
                     }
                     
