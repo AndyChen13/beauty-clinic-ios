@@ -79,34 +79,44 @@ struct StoreListView: View {
                 Text(errorMessage)
             }
         }
-        .onAppear {
-            Task { await loadData() }
-        }
+
     }
     
     private func loadData() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         
         do {
-            async let storesTask: [Store] = supabase
+            print("[StoreList] Loading stores...")
+            let s: [Store] = try await supabase
                 .from("stores")
                 .select()
                 .order("created_at", ascending: false)
                 .execute()
                 .value
+            print("[StoreList] Loaded \(s.count) stores")
             
-            async let usersTask: [User] = supabase
+            print("[StoreList] Loading users...")
+            let u: [User] = try await supabase
                 .from("users")
                 .select()
                 .execute()
                 .value
+            print("[StoreList] Loaded \(u.count) users")
             
-            let (s, u) = try await (storesTask, usersTask)
-            stores = s
-            users = u
+            await MainActor.run {
+                stores = s
+                users = u
+            }
+        } catch is CancellationError {
+            print("[StoreList] Load cancelled")
         } catch {
-            print("Error loading stores: \(error)")
+            print("[StoreList] Error: \(error)")
+            await MainActor.run {
+                errorMessage = "加载失败: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
     
