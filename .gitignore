@@ -20,3 +20,4 @@ supabase/.env
 Thumbs.db
 # Tencent COS credentials
 COSCredentials.plist
+cos_sign_server.py
