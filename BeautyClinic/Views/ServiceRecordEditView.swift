@@ -19,7 +19,7 @@ struct ServiceRecordEditView: View {
     @State private var extraPayment = ""
     @State private var extraPaymentNote = ""
     @State private var sessionsUsed = "1"
-    @State private var remainingSessions = ""
+    @State private var extraSessions = ""
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var photoDataList: [Data] = []
     @State private var isSaving = false
@@ -28,6 +28,26 @@ struct ServiceRecordEditView: View {
     
     private var customerTransactions: [Transaction] {
         transactions.filter { $0.customerId == customer.id }
+    }
+    
+    /// 当前客户剩余次数（从客户档案读取）
+    private var currentRemaining: Int {
+        customer.remainingSessions ?? 0
+    }
+    
+    /// 本次消耗次数
+    private var sessionsUsedValue: Int {
+        Int(sessionsUsed) ?? 0
+    }
+    
+    /// 本次新增购买次数
+    private var extraSessionsValue: Int {
+        Int(extraSessions) ?? 0
+    }
+    
+    /// 计算后的新剩余次数
+    private var calculatedRemaining: Int {
+        currentRemaining - sessionsUsedValue + extraSessionsValue
     }
     
     var body: some View {
@@ -59,15 +79,46 @@ struct ServiceRecordEditView: View {
                 }
                 
                 Section("次数记录") {
+                    HStack {
+                        Text("当前剩余次数")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(currentRemaining)")
+                            .font(.body.weight(.medium))
+                    }
+                    
                     TextField("本次消耗次数", text: $sessionsUsed)
                         .keyboardType(.numberPad)
-                    TextField("剩余次数 *", text: $remainingSessions)
-                        .keyboardType(.numberPad)
+                        .onChange(of: sessionsUsed) { _, newValue in
+                            sessionsUsed = String(newValue.filter { $0.isNumber }.prefix(3))
+                        }
+                    
+                    HStack {
+                        Text("更新后剩余")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(calculatedRemaining)")
+                            .font(.body.weight(.bold))
+                            .foregroundColor(calculatedRemaining < 0 ? .red : .primary)
+                    }
+                    
+                    if calculatedRemaining < 0 {
+                        Text("注意：剩余次数将为负数，请确认消耗次数正确")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                 }
                 
                 Section("额外付款") {
                     TextField("额外付款金额 (¥)", text: $extraPayment)
                         .keyboardType(.decimalPad)
+                    
+                    TextField("本次新增购买次数", text: $extraSessions)
+                        .keyboardType(.numberPad)
+                        .onChange(of: extraSessions) { _, newValue in
+                            extraSessions = String(newValue.filter { $0.isNumber }.prefix(3))
+                        }
+                    
                     TextField("付款备注", text: $extraPaymentNote)
                 }
                 
@@ -117,7 +168,7 @@ struct ServiceRecordEditView: View {
                             Text("保存")
                         }
                     }
-                    .disabled(operatorName.isEmpty || bodyPart.isEmpty || remainingSessions.isEmpty || isSaving)
+                    .disabled(operatorName.isEmpty || bodyPart.isEmpty || isSaving)
                 }
             }
             .alert("保存失败", isPresented: $showError) {
@@ -132,9 +183,7 @@ struct ServiceRecordEditView: View {
     }
     
     private func saveRecord() {
-        guard !operatorName.isEmpty, !bodyPart.isEmpty,
-              let sessionsUsedValue = Int(sessionsUsed),
-              let remainingValue = Int(remainingSessions) else { return }
+        guard !operatorName.isEmpty, !bodyPart.isEmpty else { return }
         
         isSaving = true
         
@@ -150,6 +199,7 @@ struct ServiceRecordEditView: View {
                 }
                 
                 let extraPaymentValue = Double(extraPayment) ?? 0
+                let newRemaining = calculatedRemaining
                 
                 let record = ServiceRecordInsert(
                     customerId: customer.id,
@@ -164,7 +214,7 @@ struct ServiceRecordEditView: View {
                     extraPayment: extraPaymentValue,
                     extraPaymentNote: extraPaymentNote.isEmpty ? nil : extraPaymentNote,
                     sessionsUsed: sessionsUsedValue,
-                    remainingSessions: remainingValue
+                    remainingSessions: newRemaining
                 )
                 
                 let created: [ServiceRecord] = try await supabase
@@ -174,10 +224,20 @@ struct ServiceRecordEditView: View {
                     .execute()
                     .value
                 
-                // Update customer last_visit
+                // Update customer remaining_sessions and last_visit
+                struct CustomerRemainingUpdate: Encodable {
+                    let remaining_sessions: Int
+                    let last_visit: String
+                }
+                
+                let customerUpdate = CustomerRemainingUpdate(
+                    remaining_sessions: newRemaining,
+                    last_visit: ISO8601DateFormatter().string(from: Date())
+                )
+                
                 _ = try await supabase
                     .from("customers")
-                    .update(["last_visit": ISO8601DateFormatter().string(from: Date())])
+                    .update(customerUpdate)
                     .eq("id", value: customer.id)
                     .execute()
                 
@@ -208,6 +268,7 @@ struct ServiceRecordEditView: View {
             lastVisit: nil,
             outstandingAmount: 0,
             conversionProbability: 50,
+            remainingSessions: 5,
             createdAt: nil,
             updatedAt: nil
         ),

@@ -25,6 +25,7 @@ struct CustomerEditView: View {
     @State private var selectedStoreId: UUID?
     @State private var outstandingAmount = ""
     @State private var conversionProbability = ""
+    @State private var remainingSessions = ""
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -112,6 +113,14 @@ struct CustomerEditView: View {
                     }
                 }
                 
+                Section("服务次数") {
+                    TextField("初始服务次数", text: $remainingSessions)
+                        .keyboardType(.numberPad)
+                        .onChange(of: remainingSessions) { _, newValue in
+                            remainingSessions = String(newValue.filter { $0.isNumber }.prefix(3))
+                        }
+                }
+                
                 Section("医疗记录") {
                     TextEditor(text: $medicalHistory)
                         .frame(minHeight: 80)
@@ -182,6 +191,9 @@ struct CustomerEditView: View {
                     if let probability = customer.conversionProbability {
                         conversionProbability = String(probability)
                     }
+                    if let sessions = customer.remainingSessions {
+                        remainingSessions = String(sessions)
+                    }
                 } else {
                     selectedStoreId = userState.storeId
                 }
@@ -206,6 +218,7 @@ struct CustomerEditView: View {
                 
                 let outstandingValue = Double(outstandingAmount)
                 let probabilityValue = Int(conversionProbability)
+                let sessionsValue = Int(remainingSessions)
                 
                 let customerData = CustomerInsert(
                     phone: phone,
@@ -216,7 +229,8 @@ struct CustomerEditView: View {
                     preferences: notes.isEmpty ? nil : parseNotes(notes),
                     associatedStoreId: selectedStoreId,
                     outstandingAmount: outstandingValue,
-                    conversionProbability: probabilityValue
+                    conversionProbability: probabilityValue,
+                    remainingSessions: sessionsValue
                 )
                 
                 var created: Customer
@@ -232,6 +246,7 @@ struct CustomerEditView: View {
                         let photo_url: String?
                         let outstanding_amount: Double?
                         let conversion_probability: Int?
+                        let remaining_sessions: Int?
                     }
                     
                     let updateData = CustomerUpdate(
@@ -244,7 +259,8 @@ struct CustomerEditView: View {
                         birthdate: hasBirthdate ? formatDate(birthdate) : nil,
                         photo_url: photoUrl,
                         outstanding_amount: outstandingValue,
-                        conversion_probability: probabilityValue
+                        conversion_probability: probabilityValue,
+                        remaining_sessions: sessionsValue
                     )
                     
                     let result: [Customer] = try await supabase
@@ -285,6 +301,7 @@ struct CustomerEditView: View {
                             lastVisit: created.lastVisit,
                             outstandingAmount: created.outstandingAmount,
                             conversionProbability: created.conversionProbability,
+                            remainingSessions: created.remainingSessions,
                             createdAt: created.createdAt,
                             updatedAt: created.updatedAt
                         )

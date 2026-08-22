@@ -239,6 +239,17 @@ struct CustomerDetailView: View {
                 .font(.headline)
             
             HStack(spacing: 20) {
+                if let remaining = customer.remainingSessions {
+                    VStack(spacing: 4) {
+                        Text("\(remaining)")
+                            .font(.title3.weight(.bold))
+                            .foregroundColor(remaining > 0 ? .blue : .gray)
+                        Text("剩余次数")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
                 if let outstanding = customer.outstandingAmount, outstanding > 0 {
                     VStack(spacing: 4) {
                         Text("¥\(String(format: "%.0f", outstanding))")

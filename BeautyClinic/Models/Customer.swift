@@ -15,6 +15,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     let lastVisit: Date?
     let outstandingAmount: Double?
     let conversionProbability: Int?
+    let remainingSessions: Int?
     let createdAt: Date?
     let updatedAt: Date?
     
@@ -28,6 +29,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         case lastVisit = "last_visit"
         case outstandingAmount = "outstanding_amount"
         case conversionProbability = "conversion_probability"
+        case remainingSessions = "remaining_sessions"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -70,6 +72,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         lastVisit: Date? = nil,
         outstandingAmount: Double? = nil,
         conversionProbability: Int? = nil,
+        remainingSessions: Int? = nil,
         createdAt: Date? = nil,
         updatedAt: Date? = nil
     ) {
@@ -86,6 +89,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         self.lastVisit = lastVisit
         self.outstandingAmount = outstandingAmount
         self.conversionProbability = conversionProbability
+        self.remainingSessions = remainingSessions
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -101,6 +105,7 @@ struct CustomerInsert: Codable, Sendable {
     let associatedStoreId: UUID?
     let outstandingAmount: Double?
     let conversionProbability: Int?
+    let remainingSessions: Int?
     
     enum CodingKeys: String, CodingKey {
         case phone, name, gender, birthdate
@@ -109,6 +114,7 @@ struct CustomerInsert: Codable, Sendable {
         case associatedStoreId = "associated_store_id"
         case outstandingAmount = "outstanding_amount"
         case conversionProbability = "conversion_probability"
+        case remainingSessions = "remaining_sessions"
     }
 }
 
