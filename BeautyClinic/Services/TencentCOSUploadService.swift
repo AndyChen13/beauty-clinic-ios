@@ -110,8 +110,7 @@ enum TencentCOSUploadService {
         let httpURI = "/\(encodedKey)"
         let httpParameters = "" // No query params
         let host = "\(COSConfig.bucket).cos.\(COSConfig.region).myqcloud.com"
-        let contentTypeEncoded = "image/jpeg".replacingOccurrences(of: "/", with: "%2F")
-        let httpHeaders = "content-type=\(contentTypeEncoded)&host=\(host)"
+        let httpHeaders = "host=\(host)"
         let httpString = "\(httpMethod)\n\(httpURI)\n\(httpParameters)\n\(httpHeaders)\n"
         
         // StringToSign = sha1\nKeyTime\nsha1(HttpString)\n
@@ -125,7 +124,7 @@ enum TencentCOSUploadService {
         let signature = hmacSHA1(key: signKey, message: stringToSignData)
         let signatureBase64 = signature.base64EncodedString()
         
-        let authorization = "q-sign-algorithm=sha1&q-ak=\(COSConfig.secretId)&q-sign-time=\(keyTime)&q-key-time=\(keyTime)&q-header-list=content-type;host&q-url-param-list=&q-signature=\(signatureBase64)"
+        let authorization = "q-sign-algorithm=sha1&q-ak=\(COSConfig.secretId)&q-sign-time=\(keyTime)&q-key-time=\(keyTime)&q-header-list=host&q-url-param-list=&q-signature=\(signatureBase64)"
         
         // Debug log
         print("[COS Debug] keyTime: \(keyTime)")
