@@ -53,43 +53,35 @@ enum TencentCOSUploadService {
     // MARK: - Call Local Sign Server
     
     private static func fetchAuthorization(key: String) async throws -> String {
-        let hosts = ["192.168.31.42", "localhost", "127.0.0.1"]
-        var lastError: Error?
+        let signURLString = "https://1472260859-dch399pbek.ap-shanghai.tencentscf.com/sign"
         
-        for host in hosts {
-            do {
-                guard let signURL = URL(string: "http://\(host):3000/sign") else { continue }
-                
-                var request = URLRequest(url: signURL)
-                request.httpMethod = "POST"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.httpBody = try JSONSerialization.data(withJSONObject: [
-                    "key": key,
-                    "method": "put"
-                ])
-                request.timeoutInterval = 2
-                
-                let (data, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse,
-                      httpResponse.statusCode == 200 else {
-                    continue
-                }
-                
-                let json = try JSONSerialization.jsonObject(with: data) as? [String: String]
-                guard let authorization = json?["authorization"] else {
-                    continue
-                }
-                
-                print("[COS] Sign server connected via \(host)")
-                return authorization
-            } catch {
-                lastError = error
-                print("[COS] Failed to connect to \(host):3000 - \(error.localizedDescription)")
-            }
+        guard let signURL = URL(string: signURLString) else {
+            throw COSError.invalidResponse
         }
         
-        throw lastError ?? COSError.invalidResponse
+        var request = URLRequest(url: signURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "key": key,
+            "method": "put"
+        ])
+        request.timeoutInterval = 10
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw COSError.invalidResponse
+        }
+        
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: String]
+        guard let authorization = json?["authorization"] else {
+            throw COSError.invalidResponse
+        }
+        
+        print("[COS] Sign server connected via SCF")
+        return authorization
     }
 }
 
