@@ -53,7 +53,7 @@ enum TencentCOSUploadService {
     // MARK: - Call Local Sign Server
     
     private static func fetchAuthorization(key: String) async throws -> String {
-        let hosts = ["localhost", "127.0.0.1"]
+        let hosts = ["192.168.31.42", "localhost", "127.0.0.1"]
         var lastError: Error?
         
         for host in hosts {
