@@ -27,6 +27,25 @@ struct ContentView: View {
     
     private func checkAuth() {
         Task {
+            #if DEBUG
+            // DEBUG 模式：自动注入 mock admin 用户，跳过登录
+            let mockUser = User(
+                id: UUID(),
+                email: "admin@beautyclinic.com",
+                phone: nil,
+                name: "管理员",
+                role: .admin,
+                storeId: nil,
+                avatarUrl: nil,
+                createdAt: nil,
+                updatedAt: nil
+            )
+            await MainActor.run {
+                userState.currentUser = mockUser
+                userState.isLoading = false
+                isAuthenticated = true
+            }
+            #else
             do {
                 let session = try await supabase.auth.session
                 if !session.accessToken.isEmpty && !session.isExpired {
@@ -41,6 +60,7 @@ struct ContentView: View {
             await MainActor.run {
                 userState.isLoading = false
             }
+            #endif
         }
     }
 }
