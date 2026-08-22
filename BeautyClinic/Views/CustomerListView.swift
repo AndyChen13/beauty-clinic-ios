@@ -14,6 +14,12 @@ struct CustomerListView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
+    // Two-step delete confirmation
+    @State private var showDeliveryCheck = false
+    @State private var showFinalDeleteConfirm = false
+    @State private var pendingDeliveryCount = 0
+    @State private var deleteTargetCustomer: Customer?
+    
     var filteredCustomers: [Customer] {
         if searchTerm.isEmpty { return customers }
         let term = searchTerm.lowercased()
@@ -55,7 +61,7 @@ struct CustomerListView: View {
                             .swipeActions(edge: .trailing) {
                                 if userState.isAdmin {
                                     Button(role: .destructive) {
-                                        deleteCustomer(customer)
+                                        startDeleteCustomer(customer)
                                     } label: {
                                         Label("删除", systemImage: "trash")
                                     }
@@ -99,13 +105,63 @@ struct CustomerListView: View {
             } message: {
                 Text(errorMessage)
             }
+            // Step 1: Delivery check
+            .alert("交付确认", isPresented: $showDeliveryCheck) {
+                Button("交付完成", role: .none) {
+                    showFinalDeleteConfirm = true
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("该客户还有 \(pendingDeliveryCount) 次待交付。\n\n请确认该客户已交付完成。")
+            }
+            // Step 2: Final delete confirmation
+            .alert("确认删除", isPresented: $showFinalDeleteConfirm) {
+                Button("删除", role: .destructive) {
+                    if let customer = deleteTargetCustomer {
+                        performDelete(customer)
+                    }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("请确认删除客户「\(deleteTargetCustomer?.name ?? "")」。此操作不可撤销。")
+            }
             .task { await loadData() }
             .refreshable { await loadData() }
         }
     }
     
-    private func deleteCustomer(_ customer: Customer) {
+    private func startDeleteCustomer(_ customer: Customer) {
         guard userState.isAdmin else { return }
+        deleteTargetCustomer = customer
+        
+        Task {
+            do {
+                let records: [ServiceRecord] = try await supabase
+                    .from("service_records")
+                    .select()
+                    .eq("customer_id", value: customer.id)
+                    .execute()
+                    .value
+                
+                let pendingCount = records.reduce(0) { $0 + ($1.remainingSessions ?? 0) }
+                
+                await MainActor.run {
+                    pendingDeliveryCount = pendingCount
+                    if pendingCount > 0 {
+                        showDeliveryCheck = true
+                    } else {
+                        showFinalDeleteConfirm = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    showFinalDeleteConfirm = true
+                }
+            }
+        }
+    }
+    
+    private func performDelete(_ customer: Customer) {
         Task {
             do {
                 _ = try await supabase
@@ -115,10 +171,13 @@ struct CustomerListView: View {
                     .execute()
                 await MainActor.run {
                     customers.removeAll { $0.id == customer.id }
+                    deleteTargetCustomer = nil
                 }
             } catch {
-                errorMessage = "删除失败: \(error.localizedDescription)"
-                showError = true
+                await MainActor.run {
+                    errorMessage = "删除失败: \(error.localizedDescription)"
+                    showError = true
+                }
             }
         }
     }
