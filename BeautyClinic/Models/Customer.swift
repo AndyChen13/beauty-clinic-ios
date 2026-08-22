@@ -13,6 +13,8 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     let associatedStoreId: UUID?
     let createdBy: UUID?
     let lastVisit: Date?
+    let firstTransactionAmount: Double?
+    let amountReceived: Double?
     let outstandingAmount: Double?
     let conversionProbability: Int?
     let remainingSessions: Int?
@@ -27,6 +29,8 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         case associatedStoreId = "associated_store_id"
         case createdBy = "created_by"
         case lastVisit = "last_visit"
+        case firstTransactionAmount = "first_transaction_amount"
+        case amountReceived = "amount_received"
         case outstandingAmount = "outstanding_amount"
         case conversionProbability = "conversion_probability"
         case remainingSessions = "remaining_sessions"
@@ -70,6 +74,8 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         associatedStoreId: UUID? = nil,
         createdBy: UUID? = nil,
         lastVisit: Date? = nil,
+        firstTransactionAmount: Double? = nil,
+        amountReceived: Double? = nil,
         outstandingAmount: Double? = nil,
         conversionProbability: Int? = nil,
         remainingSessions: Int? = nil,
@@ -87,6 +93,8 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         self.associatedStoreId = associatedStoreId
         self.createdBy = createdBy
         self.lastVisit = lastVisit
+        self.firstTransactionAmount = firstTransactionAmount
+        self.amountReceived = amountReceived
         self.outstandingAmount = outstandingAmount
         self.conversionProbability = conversionProbability
         self.remainingSessions = remainingSessions
@@ -103,6 +111,8 @@ struct CustomerInsert: Codable, Sendable {
     let medicalHistory: String?
     let preferences: [String: String]?
     let associatedStoreId: UUID?
+    let firstTransactionAmount: Double?
+    let amountReceived: Double?
     let outstandingAmount: Double?
     let conversionProbability: Int?
     let remainingSessions: Int?
@@ -112,6 +122,8 @@ struct CustomerInsert: Codable, Sendable {
         case medicalHistory = "medical_history"
         case preferences
         case associatedStoreId = "associated_store_id"
+        case firstTransactionAmount = "first_transaction_amount"
+        case amountReceived = "amount_received"
         case outstandingAmount = "outstanding_amount"
         case conversionProbability = "conversion_probability"
         case remainingSessions = "remaining_sessions"

@@ -23,8 +23,9 @@ struct CustomerEditView: View {
     @State private var medicalHistory = ""
     @State private var notes = ""
     @State private var selectedStoreId: UUID?
+    @State private var firstTransactionAmount = ""
+    @State private var amountReceived = ""
     @State private var outstandingAmount = ""
-    @State private var conversionProbability = ""
     @State private var remainingSessions = ""
     @State private var isSaving = false
     @State private var showError = false
@@ -132,17 +133,14 @@ struct CustomerEditView: View {
                 }
                 
                 Section("财务状态") {
-                    TextField("待收款项 (¥)", text: $outstandingAmount)
+                    TextField("首次成交额 (¥)", text: $firstTransactionAmount)
                         .keyboardType(.decimalPad)
                     
-                    TextField("成交概率 (%)", text: $conversionProbability)
-                        .keyboardType(.numberPad)
-                        .onChange(of: conversionProbability) { _, newValue in
-                            conversionProbability = String(newValue.filter { $0.isNumber }.prefix(3))
-                            if let val = Int(conversionProbability), val > 100 {
-                                conversionProbability = "100"
-                            }
-                        }
+                    TextField("已收款项 (¥)", text: $amountReceived)
+                        .keyboardType(.decimalPad)
+                    
+                    TextField("待收款项 (¥)", text: $outstandingAmount)
+                        .keyboardType(.decimalPad)
                 }
             }
             .navigationTitle(isEditing ? "编辑客户" : "添加客户")
@@ -185,11 +183,14 @@ struct CustomerEditView: View {
                     if let prefs = customer.preferences {
                         notes = prefs.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
                     }
+                    if let firstTxn = customer.firstTransactionAmount {
+                        firstTransactionAmount = String(format: "%.0f", firstTxn)
+                    }
+                    if let received = customer.amountReceived {
+                        amountReceived = String(format: "%.0f", received)
+                    }
                     if let outstanding = customer.outstandingAmount {
                         outstandingAmount = String(format: "%.0f", outstanding)
-                    }
-                    if let probability = customer.conversionProbability {
-                        conversionProbability = String(probability)
                     }
                     if let sessions = customer.remainingSessions {
                         remainingSessions = String(sessions)
@@ -216,8 +217,9 @@ struct CustomerEditView: View {
                     photoUrl = try await TencentCOSUploadService.uploadImage(photoData, key: fileName)
                 }
                 
+                let firstTxnValue = Double(firstTransactionAmount)
+                let receivedValue = Double(amountReceived)
                 let outstandingValue = Double(outstandingAmount)
-                let probabilityValue = Int(conversionProbability)
                 let sessionsValue = Int(remainingSessions)
                 
                 let customerData = CustomerInsert(
@@ -228,8 +230,10 @@ struct CustomerEditView: View {
                     medicalHistory: medicalHistory.isEmpty ? nil : medicalHistory,
                     preferences: notes.isEmpty ? nil : parseNotes(notes),
                     associatedStoreId: selectedStoreId,
+                    firstTransactionAmount: firstTxnValue,
+                    amountReceived: receivedValue,
                     outstandingAmount: outstandingValue,
-                    conversionProbability: probabilityValue,
+                    conversionProbability: nil,
                     remainingSessions: sessionsValue
                 )
                 
@@ -244,8 +248,9 @@ struct CustomerEditView: View {
                         let preferences: [String: String]?
                         let birthdate: String?
                         let photo_url: String?
+                        let first_transaction_amount: Double?
+                        let amount_received: Double?
                         let outstanding_amount: Double?
-                        let conversion_probability: Int?
                         let remaining_sessions: Int?
                     }
                     
@@ -258,8 +263,9 @@ struct CustomerEditView: View {
                         preferences: notes.isEmpty ? nil : parseNotes(notes),
                         birthdate: hasBirthdate ? formatDate(birthdate) : nil,
                         photo_url: photoUrl,
+                        first_transaction_amount: firstTxnValue,
+                        amount_received: receivedValue,
                         outstanding_amount: outstandingValue,
-                        conversion_probability: probabilityValue,
                         remaining_sessions: sessionsValue
                     )
                     
@@ -299,6 +305,8 @@ struct CustomerEditView: View {
                             associatedStoreId: created.associatedStoreId,
                             createdBy: created.createdBy,
                             lastVisit: created.lastVisit,
+                            firstTransactionAmount: created.firstTransactionAmount,
+                            amountReceived: created.amountReceived,
                             outstandingAmount: created.outstandingAmount,
                             conversionProbability: created.conversionProbability,
                             remainingSessions: created.remainingSessions,

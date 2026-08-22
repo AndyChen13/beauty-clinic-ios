@@ -261,12 +261,23 @@ struct CustomerDetailView: View {
                     }
                 }
                 
-                if let probability = customer.conversionProbability {
+                if let firstTxn = customer.firstTransactionAmount, firstTxn > 0 {
                     VStack(spacing: 4) {
-                        Text("\(probability)%")
+                        Text("¥\(String(format: "%.0f", firstTxn))")
                             .font(.title3.weight(.bold))
-                            .foregroundColor(probability >= 70 ? .green : probability >= 40 ? .orange : .red)
-                        Text("成交概率")
+                            .foregroundColor(.blue)
+                        Text("首次成交")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                if let received = customer.amountReceived, received > 0 {
+                    VStack(spacing: 4) {
+                        Text("¥\(String(format: "%.0f", received))")
+                            .font(.title3.weight(.bold))
+                            .foregroundColor(.green)
+                        Text("已收款")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -403,8 +414,11 @@ struct CustomerDetailView: View {
                 associatedStoreId: nil,
                 createdBy: nil,
                 lastVisit: nil,
-                outstandingAmount: 500,
-                conversionProbability: 75,
+                firstTransactionAmount: 5000,
+                amountReceived: 2000,
+                outstandingAmount: 3000,
+                conversionProbability: nil,
+                remainingSessions: 5,
                 createdAt: nil,
                 updatedAt: nil
             ),
