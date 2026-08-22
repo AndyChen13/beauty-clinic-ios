@@ -1,6 +1,6 @@
 // Services/TencentCOSUploadService.swift
 import Foundation
-import CryptoKit
+import CommonCrypto
 
 // MARK: - Configuration
 // Non-sensitive config (bucket & region)
@@ -136,18 +136,36 @@ enum TencentCOSUploadService {
         return authorization
     }
     
-    // MARK: - Crypto Helpers
+    // MARK: - Crypto Helpers (CommonCrypto)
     
     private static func hmacSHA1(key: Data, message: Data) -> Data {
-        let symmetricKey = SymmetricKey(data: key)
-        let signature = HMAC<Insecure.SHA1>.authenticationCode(for: message, using: symmetricKey)
-        return Data(signature)
+        var result = Data(count: Int(CC_SHA1_DIGEST_LENGTH))
+        result.withUnsafeMutableBytes { resultBytes in
+            key.withUnsafeBytes { keyBytes in
+                message.withUnsafeBytes { messageBytes in
+                    CCHmac(
+                        CCHmacAlgorithm(kCCHmacAlgSHA1),
+                        keyBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        key.count,
+                        messageBytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                        message.count,
+                        resultBytes.bindMemory(to: UInt8.self).baseAddress
+                    )
+                }
+            }
+        }
+        return result
     }
     
     private static func sha1Hex(_ string: String) -> String {
         guard let data = string.data(using: .utf8) else { return "" }
-        let hash = Insecure.SHA1.hash(data: data)
-        return hash.compactMap { String(format: "%02x", $0) }.joined()
+        var digest = [UInt8](repeating: 0, count: Int(CC_SHA1_DIGEST_LENGTH))
+        data.withUnsafeBytes { bytes in
+            if let baseAddress = bytes.baseAddress {
+                CC_SHA1(baseAddress, CC_LONG(data.count), &digest)
+            }
+        }
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
 
