@@ -46,57 +46,25 @@ struct HomeView: View {
             let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
             let startOfDay = calendar.startOfDay(for: now)
             
-            async let customersCountTask = supabase
-                .from("customers")
-                .select("*", head: true, count: .exact)
-                .execute()
+            // Load customers count
+            let customers = try await CustomerService.shared.listCustomers()
             
-            async let todayTransTask: [Transaction] = supabase
-                .from("transactions")
-                .select("amount")
-                .gte("transaction_date", value: startOfDay)
-                .execute()
-                .value
+            // Load transactions
+            let transactions: [Transaction] = try await APIClient.shared.get(path: "/api/transactions")
             
-            async let monthlyTransTask: [Transaction] = supabase
-                .from("transactions")
-                .select("amount")
-                .gte("transaction_date", value: startOfMonth)
-                .execute()
-                .value
-            
-            async let pendingTask = supabase
-                .from("transactions")
-                .select("*", head: true, count: .exact)
-                .in("status", value: ["pending", "confirmed", "in_progress"])
-                .execute()
-            
-            async let recentTask: [Transaction] = supabase
-                .from("transactions")
-                .select("""
-                    *,
-                    customers(name),
-                    packages(name)
-                """)
-                .order("transaction_date", ascending: false)
-                .limit(5)
-                .execute()
-                .value
-            
-            let (customersResp, tTrans, mTrans, pendingResp, recent) = try await (
-                customersCountTask,
-                todayTransTask,
-                monthlyTransTask,
-                pendingTask,
-                recentTask
-            )
+            let todayTrans = transactions.filter { $0.transactionDate >= startOfDay }
+            let monthlyTrans = transactions.filter { $0.transactionDate >= startOfMonth }
+            let pending = transactions.filter { 
+                $0.status == .pending || $0.status == .confirmed || $0.status == .inProgress 
+            }
+            let recent = transactions.sorted { $0.transactionDate > $1.transactionDate }.prefix(5)
             
             await MainActor.run {
-                customersCount = customersResp.count ?? 0
-                todayTransactions = tTrans.count
-                monthlyRevenue = mTrans.reduce(0) { $0 + $1.amount }
-                pendingDeliveries = pendingResp.count ?? 0
-                recentTransactions = recent
+                customersCount = customers.count
+                todayTransactions = todayTrans.count
+                monthlyRevenue = monthlyTrans.reduce(0) { $0 + $1.amount }
+                pendingDeliveries = pending.count
+                recentTransactions = Array(recent)
             }
         } catch {
             print("Dashboard load error: \(error)")

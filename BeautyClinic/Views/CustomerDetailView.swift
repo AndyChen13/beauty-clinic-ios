@@ -348,6 +348,90 @@ struct CustomerDetailView: View {
     
     private func loadTransactions() async {
         do {
+            let result: [Transaction] = try await APIClient.shared.get(path: "/api/transactions?customerId=\(customer.id.uuidString)")
+            transactions = result
+        } catch {
+            print("Error loading transactions: \(error)")
+        }
+    }
+    
+    private func loadPhotos() async {
+        do {
+            struct PhotoResponse: Codable {
+                let id: String
+                let customerId: String
+                let photoUrl: String
+                let photoType: String
+                let notes: String?
+                let uploadedBy: String?
+                let createdAt: String?
+            }
+            let result: [PhotoResponse] = try await APIClient.shared.get(
+                path: "/api/customers/\(customer.id.uuidString)/photos"
+            )
+            photos = result.map { r in
+                CustomerPhoto(
+                    id: UUID(uuidString: r.id)!,
+                    customerId: UUID(uuidString: r.customerId)!,
+                    photoUrl: r.photoUrl,
+                    photoType: PhotoType(rawValue: r.photoType) ?? .progress,
+                    notes: r.notes,
+                    uploadedBy: r.uploadedBy.flatMap { UUID(uuidString: $0) },
+                    createdAt: nil
+                )
+            }
+        } catch {
+            print("Error loading photos: \(error)")
+        }
+    }
+    
+    private func loadServiceRecords() async {
+        do {
+            struct RecordResponse: Codable {
+                let id: String
+                let customerId: String
+                let transactionId: String?
+                let serviceDate: String
+                let operatorId: String?
+                let operatorName: String?
+                let operatorPhone: String?
+                let bodyPart: String?
+                let photos: [String]?
+                let customerFeedback: String?
+                let extraPayment: Double
+                let extraPaymentNote: String?
+                let sessionsUsed: Int
+                let remainingSessions: Int?
+                let createdAt: String?
+            }
+            let result: [RecordResponse] = try await APIClient.shared.get(
+                path: "/api/service-records?customerId=\(customer.id.uuidString)"
+            )
+            let formatter = ISO8601DateFormatter()
+            serviceRecords = result.map { r in
+                ServiceRecord(
+                    id: UUID(uuidString: r.id)!,
+                    customerId: UUID(uuidString: r.customerId)!,
+                    transactionId: r.transactionId.flatMap { UUID(uuidString: $0) },
+                    serviceDate: formatter.date(from: r.serviceDate) ?? Date(),
+                    operatorId: r.operatorId.flatMap { UUID(uuidString: $0) },
+                    operatorName: r.operatorName,
+                    operatorPhone: r.operatorPhone,
+                    bodyPart: r.bodyPart,
+                    photos: r.photos,
+                    customerFeedback: r.customerFeedback,
+                    extraPayment: r.extraPayment,
+                    extraPaymentNote: r.extraPaymentNote,
+                    sessionsUsed: r.sessionsUsed,
+                    remainingSessions: r.remainingSessions,
+                    createdAt: nil
+                )
+            }
+        } catch {
+            print("Error loading service records: \(error)")
+        }
+    }
+        do {
             let result: [Transaction] = try await supabase
                 .from("transactions")
                 .select("""
