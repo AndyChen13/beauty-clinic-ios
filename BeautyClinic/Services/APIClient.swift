@@ -2,11 +2,7 @@ import Foundation
 
 // MARK: - Configuration
 enum APIConfig {
-    // Production: your Tencent Cloud server
     static let baseURL = "http://124.221.217.56"
-    // Development: use your Mac's local IP for Simulator testing
-    // Production: your Tencent Cloud server domain
-    static let baseURL = "http://192.168.31.100:3000"
     
     static var authToken: String? {
         get { UserDefaults.standard.string(forKey: "api_auth_token") }
@@ -39,13 +35,6 @@ enum APIError: Error, LocalizedError {
     }
 }
 
-// MARK: - API Response
-struct APIResponse<T: Codable>: Codable {
-    let success: Bool?
-    let error: String?
-    let data: T?
-}
-
 // MARK: - API Client
 @MainActor
 class APIClient {
@@ -59,7 +48,6 @@ class APIClient {
         self.session = URLSession(configuration: config)
     }
     
-    // MARK: - Generic Request
     func request<T: Codable>(
         path: String,
         method: String = "GET",
@@ -73,12 +61,10 @@ class APIClient {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // Add auth token
         if let token = APIConfig.authToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         
-        // Add body
         if let body = body {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
@@ -91,7 +77,6 @@ class APIClient {
             throw APIError.noData
         }
         
-        // Check status code
         switch httpResponse.statusCode {
         case 200...299:
             break
@@ -105,24 +90,13 @@ class APIClient {
             throw APIError.serverError(httpResponse.statusCode, errorMessage)
         }
         
-        // Decode response
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            // Try decoding as raw type first
-            do {
-                return try decoder.decode(T.self, from: data)
-            } catch {
-                throw APIError.decodingError(error)
-            }
-        }
+        return try decoder.decode(T.self, from: data)
     }
     
-    // MARK: - Convenience Methods
     func get<T: Codable>(path: String) async throws -> T {
         try await request(path: path, method: "GET")
     }
@@ -154,102 +128,66 @@ class AuthService {
     var isAdmin: Bool { currentUser?.role == .admin }
     var storeId: String? { currentUser?.storeId?.uuidString }
     
-    func sendCode(phone: String) async throws {
-        struct SendCodeRequest: Codable {
-            let phone: String
-        }
-        let _: [String: String] = try await APIClient.shared.post(
-            path: "/api/auth/send-code",
-            body: SendCodeRequest(phone: phone)
-        )
+    struct AuthResponse: Codable {
+        let success: Bool
+        let token: String
+        let user: APUser
     }
     
-    func verifyCode(phone: String, code: String, name: String? = nil) async throws {
-        struct VerifyRequest: Codable {
-            let phone: String
-            let code: String
-            let name: String?
-        }
-        struct VerifyResponse: Codable {
-            let success: Bool
-            let token: String
-            let user: APUser
-        }
-        struct APUser: Codable {
-            let id: String
-            let phone: String?
-            let name: String
-            let role: String
-            let storeId: String?
-            let avatarUrl: String?
-        }
-        
-        let response: VerifyResponse = try await APIClient.shared.post(
-            path: "/api/auth/verify-code",
-            body: VerifyRequest(phone: phone, code: code, name: name)
-        )
-        
-        APIConfig.authToken = response.token
-        
-        // Convert to local User model
-        let role = UserRole(rawValue: response.user.role) ?? .staff
-        let storeUUID = response.user.storeId.flatMap { UUID(uuidString: $0) }
-        let userUUID = UUID(uuidString: response.user.id)!
+    struct APUser: Codable {
+        let id: String
+        let phone: String?
+        let name: String
+        let role: String
+        let storeId: String?
+        let avatarUrl: String?
+    }
+    
+    struct RegisterRequest: Codable {
+        let phone: String
+        let password: String
+        let name: String
+    }
+    
+    struct LoginRequest: Codable {
+        let phone: String
+        let password: String
+    }
+    
+    private func saveUser(from apUser: APUser) {
+        let role = UserRole(rawValue: apUser.role) ?? .staff
+        let storeUUID = apUser.storeId.flatMap { UUID(uuidString: $0) }
+        let userUUID = UUID(uuidString: apUser.id)!
         
         currentUser = User(
             id: userUUID,
             email: nil,
-            phone: response.user.phone,
-            name: response.user.name,
+            phone: apUser.phone,
+            name: apUser.name,
             role: role,
             storeId: storeUUID,
-            avatarUrl: response.user.avatarUrl,
+            avatarUrl: apUser.avatarUrl,
             createdAt: nil,
             updatedAt: nil
         )
     }
     
-    func loginWithPassword(phone: String, password: String) async throws {
-        struct LoginRequest: Codable {
-            let phone: String
-            let password: String
-        }
-        struct LoginResponse: Codable {
-            let success: Bool
-            let token: String
-            let user: APUser
-        }
-        struct APUser: Codable {
-            let id: String
-            let phone: String?
-            let name: String
-            let role: String
-            let storeId: String?
-            let avatarUrl: String?
-        }
-        
-        let response: LoginResponse = try await APIClient.shared.post(
-            path: "/api/auth/login-password",
+    func register(phone: String, password: String, name: String) async throws {
+        let response: AuthResponse = try await APIClient.shared.post(
+            path: "/api/auth/register",
+            body: RegisterRequest(phone: phone, password: password, name: name)
+        )
+        APIConfig.authToken = response.token
+        saveUser(from: response.user)
+    }
+    
+    func login(phone: String, password: String) async throws {
+        let response: AuthResponse = try await APIClient.shared.post(
+            path: "/api/auth/login",
             body: LoginRequest(phone: phone, password: password)
         )
-        
         APIConfig.authToken = response.token
-        
-        let role = UserRole(rawValue: response.user.role) ?? .staff
-        let storeUUID = response.user.storeId.flatMap { UUID(uuidString: $0) }
-        let userUUID = UUID(uuidString: response.user.id)!
-        
-        currentUser = User(
-            id: userUUID,
-            email: nil,
-            phone: response.user.phone,
-            name: response.user.name,
-            role: role,
-            storeId: storeUUID,
-            avatarUrl: response.user.avatarUrl,
-            createdAt: nil,
-            updatedAt: nil
-        )
+        saveUser(from: response.user)
     }
     
     func loadUser() async throws {
