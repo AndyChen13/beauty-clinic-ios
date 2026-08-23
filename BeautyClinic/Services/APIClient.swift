@@ -2,7 +2,8 @@ import Foundation
 
 // MARK: - Configuration
 enum APIConfig {
-    // TODO: Replace with your server IP/domain after deployment
+    // Production: your Tencent Cloud server
+    static let baseURL = "http://124.221.217.56"
     // Development: use your Mac's local IP for Simulator testing
     // Production: your Tencent Cloud server domain
     static let baseURL = "http://192.168.31.100:3000"
