@@ -14,7 +14,6 @@ struct StoreListView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
-    // Delete blocker alert
     @State private var showDeleteBlocker = false
     @State private var blockerTitle = ""
     @State private var blockerMessage = ""
@@ -22,7 +21,6 @@ struct StoreListView: View {
     @State private var blockerStore: Store?
     @State private var blockerStoreIndex: Int?
     
-    // Delete confirmation (no customers attached)
     @State private var showDeleteConfirmation = false
     @State private var confirmStore: Store?
     @State private var confirmStoreIndex: Int?
@@ -124,22 +122,31 @@ struct StoreListView: View {
         defer { isLoading = false }
         
         do {
-            print("[StoreList] Loading stores...")
-            let s: [Store] = try await supabase
-                .from("stores")
-                .select()
-                .order("created_at", ascending: false)
-                .execute()
-                .value
-            print("[StoreList] Loaded \(s.count) stores")
+            let s = try await StoreService.shared.listStores()
             
-            print("[StoreList] Loading users...")
-            let u: [User] = try await supabase
-                .from("users")
-                .select()
-                .execute()
-                .value
-            print("[StoreList] Loaded \(u.count) users")
+            struct UserResponse: Codable {
+                let id: String
+                let phone: String?
+                let email: String?
+                let name: String
+                let role: String
+                let storeId: String?
+                let avatarUrl: String?
+            }
+            let userResponses: [UserResponse] = try await APIClient.shared.get(path: "/api/users")
+            let u = userResponses.map { r in
+                User(
+                    id: UUID(uuidString: r.id)!,
+                    email: r.email,
+                    phone: r.phone,
+                    name: r.name,
+                    role: UserRole(rawValue: r.role) ?? .staff,
+                    storeId: r.storeId.flatMap { UUID(uuidString: $0) },
+                    avatarUrl: r.avatarUrl,
+                    createdAt: nil,
+                    updatedAt: nil
+                )
+            }
             
             await MainActor.run {
                 stores = s
@@ -163,16 +170,9 @@ struct StoreListView: View {
         if userState.isAdmin {
             Task {
                 do {
-                    // 1. 查询该门店下所有客户
-                    let customers: [Customer] = try await supabase
-                        .from("customers")
-                        .select()
-                        .eq("associated_store_id", value: store.id)
-                        .execute()
-                        .value
+                    let customers = try await CustomerService.shared.listCustomers(storeId: store.id)
                     
                     guard !customers.isEmpty else {
-                        // 没有客户，弹窗确认后删除
                         await MainActor.run {
                             confirmStore = store
                             confirmStoreIndex = index
@@ -181,16 +181,7 @@ struct StoreListView: View {
                         return
                     }
                     
-                    // 2. 查询这些客户的服务记录，检查是否有未完成交付
-                    let customerIds = customers.map { $0.id }
-                    let records: [ServiceRecord] = try await supabase
-                        .from("service_records")
-                        .select()
-                        .in("customer_id", values: customerIds)
-                        .execute()
-                        .value
-                    
-                    let hasPending = records.contains { ($0.remainingSessions ?? 0) > 0 }
+                    let hasPending = customers.contains { ($0.remainingSessions ?? 0) > 0 }
                     let names = customers.map { $0.name }.joined(separator: "、")
                     
                     await MainActor.run {
@@ -220,11 +211,7 @@ struct StoreListView: View {
     
     private func performDelete(store: Store, at index: Int) async {
         do {
-            _ = try await supabase
-                .from("stores")
-                .delete()
-                .eq("id", value: store.id)
-                .execute()
+            try await StoreService.shared.deleteStore(id: store.id)
             await MainActor.run {
                 stores.remove(at: index)
             }
@@ -239,18 +226,19 @@ struct StoreListView: View {
     private func closeStore(store: Store, at index: Int) {
         Task {
             do {
-                let updated: [Store] = try await supabase
-                    .from("stores")
-                    .update(["status": "closed"])
-                    .eq("id", value: store.id)
-                    .select()
-                    .execute()
-                    .value
-                
+                let updated = try await StoreService.shared.updateStore(
+                    id: store.id,
+                    data: StoreInsert(
+                        name: store.name,
+                        address: store.address,
+                        phone: store.phone,
+                        status: .closed,
+                        managerId: store.managerId,
+                        imageUrl: store.imageUrl
+                    )
+                )
                 await MainActor.run {
-                    if let newStore = updated.first {
-                        stores[index] = newStore
-                    }
+                    stores[index] = updated
                 }
             } catch {
                 await MainActor.run {
@@ -272,10 +260,11 @@ struct StoreListView: View {
                     targetName: store.name,
                     reason: deleteReason.isEmpty ? nil : deleteReason
                 )
-                _ = try await supabase
-                    .from("deletion_requests")
-                    .insert(request)
-                    .execute()
+                struct EmptyResponse: Codable {}
+                let _: EmptyResponse = try await APIClient.shared.post(
+                    path: "/api/deletion-requests",
+                    body: request
+                )
                 await MainActor.run {
                     deleteReason = ""
                     storeToDelete = nil
@@ -621,49 +610,27 @@ struct StoreEditView: View {
         
         Task {
             do {
+                let storeData = StoreInsert(
+                    name: name,
+                    address: address.isEmpty ? nil : address,
+                    phone: phone.isEmpty ? nil : phone,
+                    status: status,
+                    managerId: managerId,
+                    imageUrl: imageUrl
+                )
+                
                 switch mode {
                 case .create:
-                    let storeData = StoreInsert(
-                        name: name,
-                        address: address.isEmpty ? nil : address,
-                        phone: phone.isEmpty ? nil : phone,
-                        status: status,
-                        managerId: managerId,
-                        imageUrl: imageUrl
-                    )
-                    
-                    let created: [Store] = try await supabase
-                        .from("stores")
-                        .insert(storeData)
-                        .select()
-                        .execute()
-                        .value
-                    
+                    let created = try await StoreService.shared.createStore(storeData)
                     await MainActor.run {
-                        onSave(created.first!)
+                        onSave(created)
                         dismiss()
                     }
                     
                 case .edit(let existingStore):
-                    let updateData = StoreInsert(
-                        name: name,
-                        address: address.isEmpty ? nil : address,
-                        phone: phone.isEmpty ? nil : phone,
-                        status: status,
-                        managerId: managerId,
-                        imageUrl: imageUrl
-                    )
-                    
-                    let updated: [Store] = try await supabase
-                        .from("stores")
-                        .update(updateData)
-                        .eq("id", value: existingStore.id)
-                        .select()
-                        .execute()
-                        .value
-                    
+                    let updated = try await StoreService.shared.updateStore(id: existingStore.id, data: storeData)
                     await MainActor.run {
-                        onSave(updated.first!)
+                        onSave(updated)
                         dismiss()
                     }
                 }

@@ -14,7 +14,6 @@ struct CustomerListView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     
-    // Two-step delete confirmation
     @State private var showDeliveryCheck = false
     @State private var showFinalDeleteConfirm = false
     @State private var pendingDeliveryCount = 0
@@ -105,7 +104,6 @@ struct CustomerListView: View {
             } message: {
                 Text(errorMessage)
             }
-            // Step 1: Delivery check
             .alert("交付确认", isPresented: $showDeliveryCheck) {
                 Button("交付完成", role: .none) {
                     showFinalDeleteConfirm = true
@@ -114,7 +112,6 @@ struct CustomerListView: View {
             } message: {
                 Text("该客户还有 \(pendingDeliveryCount) 次待交付。\n\n请确认该客户已交付完成。")
             }
-            // Step 2: Final delete confirmation
             .alert("确认删除", isPresented: $showFinalDeleteConfirm) {
                 Button("删除", role: .destructive) {
                     if let customer = deleteTargetCustomer {
@@ -134,57 +131,18 @@ struct CustomerListView: View {
         guard userState.isAdmin else { return }
         deleteTargetCustomer = customer
         
-        Task {
-            do {
-                let records: [ServiceRecord] = try await supabase
-                    .from("service_records")
-                    .select()
-                    .eq("customer_id", value: customer.id)
-                    .execute()
-                    .value
-                
-                let pendingCount = records.reduce(0) { $0 + ($1.remainingSessions ?? 0) }
-                
-                await MainActor.run {
-                    pendingDeliveryCount = pendingCount
-                    if pendingCount > 0 {
-                        showDeliveryCheck = true
-                    } else {
-                        showFinalDeleteConfirm = true
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    showFinalDeleteConfirm = true
-                }
-            }
+        if let remaining = customer.remainingSessions, remaining > 0 {
+            pendingDeliveryCount = remaining
+            showDeliveryCheck = true
+        } else {
+            showFinalDeleteConfirm = true
         }
     }
     
     private func performDelete(_ customer: Customer) {
         Task {
             do {
-                // 1. 先删除关联的服务记录
-                _ = try await supabase
-                    .from("service_records")
-                    .delete()
-                    .eq("customer_id", value: customer.id)
-                    .execute()
-                
-                // 2. 删除关联的照片记录
-                _ = try await supabase
-                    .from("customer_photos")
-                    .delete()
-                    .eq("customer_id", value: customer.id)
-                    .execute()
-                
-                // 3. 最后删除客户
-                _ = try await supabase
-                    .from("customers")
-                    .delete()
-                    .eq("id", value: customer.id)
-                    .execute()
-                
+                try await CustomerService.shared.deleteCustomer(id: customer.id)
                 await MainActor.run {
                     customers.removeAll { $0.id == customer.id }
                     deleteTargetCustomer = nil
@@ -209,10 +167,11 @@ struct CustomerListView: View {
                     targetName: customer.name,
                     reason: deleteReason.isEmpty ? nil : deleteReason
                 )
-                _ = try await supabase
-                    .from("deletion_requests")
-                    .insert(request)
-                    .execute()
+                struct EmptyResponse: Codable {}
+                let _: EmptyResponse = try await APIClient.shared.post(
+                    path: "/api/deletion-requests",
+                    body: request
+                )
                 await MainActor.run {
                     deleteReason = ""
                     customerToDelete = nil
@@ -229,18 +188,8 @@ struct CustomerListView: View {
         defer { isLoading = false }
         
         do {
-            async let customersTask: [Customer] = supabase
-                .from("customers")
-                .select()
-                .order("created_at", ascending: false)
-                .execute()
-                .value
-            
-            async let storesTask: [Store] = supabase
-                .from("stores")
-                .select()
-                .execute()
-                .value
+            async let customersTask = CustomerService.shared.listCustomers()
+            async let storesTask = StoreService.shared.listStores()
             
             let (c, s) = try await (customersTask, storesTask)
             customers = c
