@@ -2,10 +2,30 @@
 import SwiftUI
 
 struct ServiceRecordDetailView: View {
-    let record: ServiceRecord
+    let sourceRecord: ServiceRecord
+    let customer: Customer
+    let transactions: [Transaction]
+    var onDelete: (() -> Void)? = nil
+    var onSave: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
+    @State private var displayRecord: ServiceRecord
     @State private var selectedPhotoIndex: Int?
     @State private var showPhotoViewer = false
+    @State private var showFirstConfirm = false
+    @State private var showSecondConfirm = false
+    @State private var isDeleting = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showingEditSheet = false
+    
+    init(record: ServiceRecord, customer: Customer, transactions: [Transaction], onDelete: (() -> Void)? = nil, onSave: (() -> Void)? = nil) {
+        self.sourceRecord = record
+        self.customer = customer
+        self.transactions = transactions
+        self.onDelete = onDelete
+        self.onSave = onSave
+        _displayRecord = State(initialValue: record)
+    }
     
     var body: some View {
         ScrollView {
@@ -15,22 +35,22 @@ struct ServiceRecordDetailView: View {
                     HStack {
                         Image(systemName: "calendar")
                             .foregroundColor(.accentColor)
-                        Text(record.serviceDate.formatted(date: .long, time: .shortened))
+                        Text(displayRecord.serviceDate.formatted(date: .long, time: .shortened))
                             .font(.headline)
                         Spacer()
                     }
                     
-                    if record.extraPayment > 0 {
+                    if displayRecord.extraPayment > 0 {
                         HStack {
                             Image(systemName: "yensign.circle.fill")
                                 .foregroundColor(.green)
-                            Text("额外付款: ¥\(String(format: "%.2f", record.extraPayment))")
+                            Text("额外付款: ¥\(String(format: "%.2f", displayRecord.extraPayment))")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundColor(.green)
                             Spacer()
                         }
                         
-                        if let note = record.extraPaymentNote, !note.isEmpty {
+                        if let note = displayRecord.extraPaymentNote, !note.isEmpty {
                             Text("备注: \(note)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -47,14 +67,14 @@ struct ServiceRecordDetailView: View {
                     Text("操作人信息")
                         .font(.headline)
                     
-                    if let name = record.operatorName, !name.isEmpty {
+                    if let name = displayRecord.operatorName, !name.isEmpty {
                         InfoRow(label: "姓名", value: name)
                     }
-                    if let phone = record.operatorPhone, !phone.isEmpty {
+                    if let phone = displayRecord.operatorPhone, !phone.isEmpty {
                         Divider()
                         InfoRow(label: "联系方式", value: phone)
                     }
-                    if let part = record.bodyPart, !part.isEmpty {
+                    if let part = displayRecord.bodyPart, !part.isEmpty {
                         Divider()
                         InfoRow(label: "操作部位", value: part)
                     }
@@ -70,14 +90,14 @@ struct ServiceRecordDetailView: View {
                     
                     HStack(spacing: 20) {
                         VStack(spacing: 4) {
-                            Text("\(record.sessionsUsed)")
+                            Text("\(displayRecord.sessionsUsed)")
                                 .font(.title3.weight(.bold))
                             Text("本次消耗")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         
-                        if let remaining = record.remainingSessions {
+                        if let remaining = displayRecord.remainingSessions {
                             VStack(spacing: 4) {
                                 Text("\(remaining)")
                                     .font(.title3.weight(.bold))
@@ -95,8 +115,23 @@ struct ServiceRecordDetailView: View {
                 .background(Color(UIColor.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 
+                // Service Details
+                if let details = displayRecord.serviceDetails, !details.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("服务记录")
+                            .font(.headline)
+                        Text(details)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                
                 // Customer Feedback
-                if let feedback = record.customerFeedback, !feedback.isEmpty {
+                if let feedback = displayRecord.customerFeedback, !feedback.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("客户反馈")
                             .font(.headline)
@@ -111,7 +146,7 @@ struct ServiceRecordDetailView: View {
                 }
                 
                 // Photos
-                if let photos = record.photos, !photos.isEmpty {
+                if let photos = displayRecord.photos, !photos.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("照片留存")
@@ -164,14 +199,77 @@ struct ServiceRecordDetailView: View {
         }
         .navigationTitle("服务记录详情")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    showingEditSheet = true
+                } label: {
+                    Text("编辑")
+                }
+                .disabled(isDeleting)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(role: .destructive) {
+                    showFirstConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(isDeleting)
+            }
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            ServiceRecordEditView(
+                record: displayRecord,
+                customer: customer,
+                transactions: transactions
+            ) { updated in
+                displayRecord = updated
+                onSave?()
+                dismiss()
+            }
+        }
+        .confirmationDialog("删除服务记录", isPresented: $showFirstConfirm, titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                showSecondConfirm = true
+            }
+            Button("取消", role: .cancel) { }
+        } message: {
+            Text("删除后将恢复该记录消耗的剩余次数。")
+        }
+        .alert("确认删除", isPresented: $showSecondConfirm) {
+            Button("取消", role: .cancel) { }
+            Button("确认删除", role: .destructive) {
+                Task { await deleteRecord() }
+            }
+        } message: {
+            Text("此操作不可恢复，确定删除这条服务记录吗？")
+        }
+        .alert("删除失败", isPresented: $showError) {
+            Button("确定", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
+        }
         .sheet(isPresented: $showPhotoViewer) {
-            if let photos = record.photos,
+            if let photos = displayRecord.photos,
                let index = selectedPhotoIndex,
                index < photos.count,
                let url = URL(string: photos[index]) {
                 PhotoViewer(url: url, onDismiss: { showPhotoViewer = false })
             }
         }
+    }
+    
+    private func deleteRecord() async {
+        isDeleting = true
+        do {
+            try await ServiceRecordService.shared.deleteRecord(id: displayRecord.id)
+            onDelete?()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+        isDeleting = false
     }
 }
 
@@ -207,27 +305,6 @@ struct PhotoViewer: View {
                 }
             }
             .toolbar {
-                Color.black.ignoresSafeArea()
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                    case .failure:
-                        VStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.largeTitle)
-                            Text("加载失败")
-                        }
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-            }
-            .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("关闭") { onDismiss() }
                         .foregroundColor(.white)
@@ -246,9 +323,10 @@ struct PhotoViewer: View {
                 transactionId: nil,
                 serviceDate: Date(),
                 operatorId: nil,
-                operatorName: "李医生",
+                operatorName: "李技师",
                 operatorPhone: "13800138000",
                 bodyPart: "面部",
+                serviceDetails: nil,
                 photos: nil,
                 customerFeedback: "效果很满意，下次再来",
                 extraPayment: 500,
@@ -256,7 +334,14 @@ struct PhotoViewer: View {
                 sessionsUsed: 1,
                 remainingSessions: 5,
                 createdAt: Date()
-            )
+            ),
+            customer: Customer(
+                id: UUID(),
+                phone: "13800138000",
+                name: "张女士",
+                remainingSessions: 5
+            ),
+            transactions: []
         )
     }
 }

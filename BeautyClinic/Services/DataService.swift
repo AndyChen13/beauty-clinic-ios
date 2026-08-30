@@ -19,6 +19,8 @@ class StoreService {
             let status: String
             let managerId: String?
             let imageUrl: String?
+            let notes: String?
+            let introduction: String?
             let createdAt: String?
             let updatedAt: String?
         }
@@ -33,6 +35,8 @@ class StoreService {
                 status: StoreStatus(rawValue: r.status) ?? .pending,
                 managerId: r.managerId.flatMap { UUID(uuidString: $0) },
                 imageUrl: r.imageUrl,
+                notes: r.notes,
+                introduction: r.introduction,
                 createdAt: nil,
                 updatedAt: nil
             )
@@ -48,6 +52,8 @@ class StoreService {
             let status: String
             let managerId: String?
             let imageUrl: String?
+            let notes: String?
+            let introduction: String?
             let createdAt: String?
             let updatedAt: String?
         }
@@ -61,6 +67,8 @@ class StoreService {
             status: StoreStatus(rawValue: r.status) ?? .pending,
             managerId: r.managerId.flatMap { UUID(uuidString: $0) },
             imageUrl: r.imageUrl,
+            notes: r.notes,
+            introduction: r.introduction,
             createdAt: nil,
             updatedAt: nil
         )
@@ -75,6 +83,8 @@ class StoreService {
             let status: String
             let managerId: String?
             let imageUrl: String?
+            let notes: String?
+            let introduction: String?
         }
         
         let r: StoreResponse = try await APIClient.shared.post(path: "/api/stores", body: insert)
@@ -86,6 +96,8 @@ class StoreService {
             status: StoreStatus(rawValue: r.status) ?? .pending,
             managerId: r.managerId.flatMap { UUID(uuidString: $0) },
             imageUrl: r.imageUrl,
+            notes: r.notes,
+            introduction: r.introduction,
             createdAt: nil,
             updatedAt: nil
         )
@@ -100,6 +112,8 @@ class StoreService {
             let status: String
             let managerId: String?
             let imageUrl: String?
+            let notes: String?
+            let introduction: String?
         }
         
         let r: StoreResponse = try await APIClient.shared.put(
@@ -114,6 +128,8 @@ class StoreService {
             status: StoreStatus(rawValue: r.status) ?? .pending,
             managerId: r.managerId.flatMap { UUID(uuidString: $0) },
             imageUrl: r.imageUrl,
+            notes: r.notes,
+            introduction: r.introduction,
             createdAt: nil,
             updatedAt: nil
         )
@@ -154,6 +170,7 @@ class CustomerService {
             let associatedStoreId: String?
             let createdBy: String?
             let lastVisit: String?
+            let firstTransactionDate: String?
             let firstTransactionAmount: Double?
             let amountReceived: Double?
             let outstandingAmount: Double?
@@ -177,6 +194,7 @@ class CustomerService {
                 associatedStoreId: r.associatedStoreId.flatMap { UUID(uuidString: $0) },
                 createdBy: r.createdBy.flatMap { UUID(uuidString: $0) },
                 lastVisit: nil,
+                firstTransactionDate: parseISO8601Date(r.firstTransactionDate),
                 firstTransactionAmount: r.firstTransactionAmount,
                 amountReceived: r.amountReceived,
                 outstandingAmount: r.outstandingAmount,
@@ -199,6 +217,7 @@ class CustomerService {
             let preferences: [String: String]?
             let photoUrl: String?
             let associatedStoreId: String?
+            let firstTransactionDate: String?
             let firstTransactionAmount: Double?
             let amountReceived: Double?
             let outstandingAmount: Double?
@@ -221,6 +240,7 @@ class CustomerService {
             associatedStoreId: r.associatedStoreId.flatMap { UUID(uuidString: $0) },
             createdBy: nil,
             lastVisit: nil,
+            firstTransactionDate: parseISO8601Date(r.firstTransactionDate),
             firstTransactionAmount: r.firstTransactionAmount,
             amountReceived: r.amountReceived,
             outstandingAmount: r.outstandingAmount,
@@ -242,6 +262,7 @@ class CustomerService {
             let preferences: [String: String]?
             let photoUrl: String?
             let associatedStoreId: String?
+            let firstTransactionDate: String?
             let firstTransactionAmount: Double?
             let amountReceived: Double?
             let outstandingAmount: Double?
@@ -264,10 +285,58 @@ class CustomerService {
             associatedStoreId: r.associatedStoreId.flatMap { UUID(uuidString: $0) },
             createdBy: nil,
             lastVisit: nil,
+            firstTransactionDate: parseISO8601Date(r.firstTransactionDate),
             firstTransactionAmount: r.firstTransactionAmount,
             amountReceived: r.amountReceived,
             outstandingAmount: r.outstandingAmount,
             conversionProbability: nil,
+            remainingSessions: r.remainingSessions,
+            createdAt: nil,
+            updatedAt: nil
+        )
+    }
+    
+    func getCustomer(id: UUID) async throws -> Customer {
+        struct CustomerResponse: Codable {
+            let id: String
+            let phone: String
+            let name: String
+            let gender: String?
+            let birthdate: String?
+            let medicalHistory: String?
+            let preferences: [String: String]?
+            let photoUrl: String?
+            let associatedStoreId: String?
+            let createdBy: String?
+            let lastVisit: String?
+            let firstTransactionDate: String?
+            let firstTransactionAmount: Double?
+            let amountReceived: Double?
+            let outstandingAmount: Double?
+            let conversionProbability: Int?
+            let remainingSessions: Int?
+            let createdAt: String?
+            let updatedAt: String?
+        }
+        
+        let r: CustomerResponse = try await APIClient.shared.get(path: "/api/customers/\(id.uuidString)")
+        return Customer(
+            id: UUID(uuidString: r.id)!,
+            phone: r.phone,
+            name: r.name,
+            gender: r.gender,
+            birthdate: r.birthdate,
+            medicalHistory: r.medicalHistory,
+            preferences: r.preferences,
+            photoUrl: r.photoUrl,
+            associatedStoreId: r.associatedStoreId.flatMap { UUID(uuidString: $0) },
+            createdBy: r.createdBy.flatMap { UUID(uuidString: $0) },
+            lastVisit: nil,
+            firstTransactionDate: parseISO8601Date(r.firstTransactionDate),
+            firstTransactionAmount: r.firstTransactionAmount,
+            amountReceived: r.amountReceived,
+            outstandingAmount: r.outstandingAmount,
+            conversionProbability: r.conversionProbability,
             remainingSessions: r.remainingSessions,
             createdAt: nil,
             updatedAt: nil
@@ -281,5 +350,460 @@ class CustomerService {
         let _: DeleteResponse = try await APIClient.shared.delete(
             path: "/api/customers/\(id.uuidString)"
         )
+    }
+}
+
+// MARK: - Date Parsing Helper
+private func parseISO8601Date(_ string: String?) -> Date? {
+    guard let string = string else { return nil }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: string) { return date }
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: string)
+}
+
+// MARK: - Transaction Service
+@MainActor
+class TransactionService {
+    static let shared = TransactionService()
+    
+    struct TransactionResponse: Codable {
+        let id: String
+        let customerId: String
+        let storeId: String
+        let packageId: String
+        let staffUserId: String?
+        let amount: Double
+        let amountReceived: Double?
+        let outstandingAmount: Double?
+        let totalSessions: Int
+        let completedSessions: Int
+        let transactionDate: String
+        let firstDeliveryDate: String?
+        let estimatedCompletionDate: String?
+        let status: String
+        let notes: String?
+        let createdAt: String?
+        let updatedAt: String?
+        let customer: NameBrief?
+        let store: NameBrief?
+        let package: NameBrief?
+        
+        struct NameBrief: Codable {
+            let name: String
+        }
+    }
+    
+    private func mapToTransaction(_ r: TransactionResponse) -> Transaction {
+        var t = Transaction(
+            id: UUID(uuidString: r.id)!,
+            customerId: UUID(uuidString: r.customerId)!,
+            storeId: UUID(uuidString: r.storeId)!,
+            packageId: UUID(uuidString: r.packageId)!,
+            staffUserId: r.staffUserId.flatMap { UUID(uuidString: $0) },
+            amount: r.amount,
+            amountReceived: r.amountReceived,
+            outstandingAmount: r.outstandingAmount,
+            totalSessions: r.totalSessions,
+            completedSessions: r.completedSessions,
+            transactionDate: parseISO8601Date(r.transactionDate) ?? Date(),
+            firstDeliveryDate: parseISO8601Date(r.firstDeliveryDate),
+            estimatedCompletionDate: parseISO8601Date(r.estimatedCompletionDate),
+            status: TransactionStatus(rawValue: r.status) ?? .pending,
+            notes: r.notes,
+            createdAt: parseISO8601Date(r.createdAt),
+            updatedAt: parseISO8601Date(r.updatedAt)
+        )
+        t.customerName = r.customer?.name
+        t.storeName = r.store?.name
+        t.packageName = r.package?.name
+        return t
+    }
+    
+    func listTransactions(storeId: String? = nil, customerId: String? = nil, status: String? = nil) async throws -> [Transaction] {
+        var query: [String] = []
+        if let storeId = storeId { query.append("storeId=\(storeId)") }
+        if let customerId = customerId { query.append("customerId=\(customerId)") }
+        if let status = status { query.append("status=\(status)") }
+        let qs = query.isEmpty ? "" : "?" + query.joined(separator: "&")
+        
+        let responses: [TransactionResponse] = try await APIClient.shared.get(path: "/api/transactions" + qs)
+        return responses.map(mapToTransaction)
+    }
+    
+    func createTransaction(_ insert: TransactionInsert) async throws -> Transaction {
+        let r: TransactionResponse = try await APIClient.shared.post(path: "/api/transactions", body: insert)
+        return mapToTransaction(r)
+    }
+    
+    func updateTransaction(id: String, data: TransactionUpdate) async throws -> Transaction {
+        let r: TransactionResponse = try await APIClient.shared.put(path: "/api/transactions/\(id)", body: data)
+        return mapToTransaction(r)
+    }
+}
+
+// MARK: - Delivery Service
+@MainActor
+class DeliveryService {
+    static let shared = DeliveryService()
+    
+    struct DeliveryResponse: Codable {
+        let id: String
+        let transactionId: String
+        let customerId: String
+        let storeId: String
+        let staffUserId: String?
+        let sessionNumber: Int
+        let deliveryDate: String
+        let notes: String?
+        let photos: [String]?
+        let createdAt: String?
+    }
+    
+    private func mapToDelivery(_ r: DeliveryResponse) -> Delivery {
+        Delivery(
+            id: UUID(uuidString: r.id)!,
+            transactionId: UUID(uuidString: r.transactionId)!,
+            customerId: UUID(uuidString: r.customerId)!,
+            storeId: UUID(uuidString: r.storeId)!,
+            staffUserId: r.staffUserId.flatMap { UUID(uuidString: $0) },
+            sessionNumber: r.sessionNumber,
+            deliveryDate: parseISO8601Date(r.deliveryDate) ?? Date(),
+            notes: r.notes,
+            photos: r.photos,
+            createdAt: parseISO8601Date(r.createdAt)
+        )
+    }
+    
+    func listDeliveries(transactionId: String? = nil) async throws -> [Delivery] {
+        var path = "/api/deliveries"
+        if let tid = transactionId {
+            path += "?transactionId=\(tid)"
+        }
+        let responses: [DeliveryResponse] = try await APIClient.shared.get(path: path)
+        return responses.map(mapToDelivery)
+    }
+    
+    func createDelivery(_ insert: DeliveryInsert) async throws -> Delivery {
+        let r: DeliveryResponse = try await APIClient.shared.post(path: "/api/deliveries", body: insert)
+        return mapToDelivery(r)
+    }
+}
+
+// MARK: - Package Service
+@MainActor
+class PackageService {
+    static let shared = PackageService()
+    
+    struct PackageResponse: Codable {
+        let id: String
+        let name: String
+        let description: String?
+        let category: String
+        let price: Double
+        let durationMinutes: Int
+        let totalSessions: Int
+        let imageUrl: String?
+        let isActive: Bool
+        let createdAt: String?
+        let updatedAt: String?
+        let trainingMats: [TrainingMaterialResponse]?
+        
+        struct TrainingMaterialResponse: Codable {
+            let id: String
+            let packageId: String?
+            let category: String
+            let storeId: String?
+            let title: String
+            let version: String
+            let fileUrl: String
+            let fileType: String
+            let description: String?
+            let uploadedBy: String?
+            let isActive: Bool
+            let createdAt: String?
+            let updatedAt: String?
+        }
+    }
+    
+    private func mapToPackage(_ r: PackageResponse) -> ServicePackage {
+        ServicePackage(
+            id: UUID(uuidString: r.id)!,
+            name: r.name,
+            description: r.description,
+            category: PackageCategory(rawValue: r.category) ?? .other,
+            price: r.price,
+            durationMinutes: r.durationMinutes,
+            totalSessions: r.totalSessions,
+            imageUrl: r.imageUrl,
+            trainingMaterials: nil,
+            isActive: r.isActive,
+            createdAt: parseISO8601Date(r.createdAt),
+            updatedAt: parseISO8601Date(r.updatedAt)
+        )
+    }
+    
+    private func mapToTrainingMaterial(_ r: PackageResponse.TrainingMaterialResponse) -> TrainingMaterial {
+        TrainingMaterial(
+            id: UUID(uuidString: r.id)!,
+            packageId: r.packageId.flatMap { UUID(uuidString: $0) },
+            category: TrainingMaterialCategory(rawValue: r.category) ?? .general,
+            storeId: r.storeId.flatMap { UUID(uuidString: $0) },
+            title: r.title,
+            version: r.version,
+            fileUrl: r.fileUrl,
+            fileType: FileType(rawValue: r.fileType) ?? .pdf,
+            description: r.description,
+            uploadedBy: r.uploadedBy.flatMap { UUID(uuidString: $0) },
+            isActive: r.isActive,
+            createdAt: parseISO8601Date(r.createdAt),
+            updatedAt: parseISO8601Date(r.updatedAt)
+        )
+    }
+    
+    func listPackages(category: String? = nil, isActive: Bool? = nil) async throws -> ([ServicePackage], [TrainingMaterial]) {
+        var query: [String] = []
+        if let category = category { query.append("category=\(category)") }
+        if let isActive = isActive { query.append("isActive=\(isActive)") }
+        let qs = query.isEmpty ? "" : "?" + query.joined(separator: "&")
+        
+        let responses: [PackageResponse] = try await APIClient.shared.get(path: "/api/packages" + qs)
+        let packages = responses.map(mapToPackage)
+        let materials = responses.compactMap { $0.trainingMats }.flatMap { $0.map(mapToTrainingMaterial) }
+        return (packages, materials)
+    }
+    
+    func createPackage(_ insert: ServicePackageInsert) async throws -> ServicePackage {
+        let response: PackageResponse = try await APIClient.shared.post(path: "/api/packages", body: insert)
+        return mapToPackage(response)
+    }
+
+    func updatePackage(id: UUID, insert: ServicePackageInsert) async throws -> ServicePackage {
+        let response: PackageResponse = try await APIClient.shared.put(path: "/api/packages/\(id.uuidString)", body: insert)
+        return mapToPackage(response)
+    }
+
+    func deletePackage(id: UUID) async throws {
+        struct DeleteResponse: Codable {
+            let success: Bool
+        }
+        let _: DeleteResponse = try await APIClient.shared.delete(path: "/api/packages/\(id.uuidString)")
+    }
+}
+
+// MARK: - Service Record Service
+@MainActor
+class ServiceRecordService {
+    static let shared = ServiceRecordService()
+    
+    struct RecordResponse: Codable {
+        let id: String
+        let customerId: String
+        let transactionId: String?
+        let serviceDate: String
+        let operatorId: String?
+        let operatorName: String?
+        let operatorPhone: String?
+        let bodyPart: String?
+        let serviceDetails: String?
+        let photos: [String]?
+        let customerFeedback: String?
+        let extraPayment: Double
+        let extraPaymentNote: String?
+        let sessionsUsed: Int
+        let remainingSessions: Int?
+        let createdAt: String?
+    }
+    
+    private func mapToRecord(_ r: RecordResponse) -> ServiceRecord {
+        ServiceRecord(
+            id: UUID(uuidString: r.id)!,
+            customerId: UUID(uuidString: r.customerId)!,
+            transactionId: r.transactionId.flatMap { UUID(uuidString: $0) },
+            serviceDate: parseISO8601Date(r.serviceDate) ?? Date(),
+            operatorId: r.operatorId.flatMap { UUID(uuidString: $0) },
+            operatorName: r.operatorName,
+            operatorPhone: r.operatorPhone,
+            bodyPart: r.bodyPart,
+            serviceDetails: r.serviceDetails,
+            photos: r.photos,
+            customerFeedback: r.customerFeedback,
+            extraPayment: r.extraPayment,
+            extraPaymentNote: r.extraPaymentNote,
+            sessionsUsed: r.sessionsUsed,
+            remainingSessions: r.remainingSessions,
+            createdAt: parseISO8601Date(r.createdAt)
+        )
+    }
+    
+    func listRecords(customerId: String? = nil) async throws -> [ServiceRecord] {
+        var path = "/api/service-records"
+        if let cid = customerId {
+            path += "?customerId=\(cid)"
+        }
+        let responses: [RecordResponse] = try await APIClient.shared.get(path: path)
+        return responses.map(mapToRecord)
+    }
+    
+    func createRecord(_ insert: ServiceRecordInsert) async throws -> ServiceRecord {
+        let r: RecordResponse = try await APIClient.shared.post(path: "/api/service-records", body: insert)
+        return mapToRecord(r)
+    }
+    
+    func updateRecord(id: UUID, _ update: ServiceRecordUpdate) async throws -> ServiceRecord {
+        let r: RecordResponse = try await APIClient.shared.put(path: "/api/service-records/\(id.uuidString)", body: update)
+        return mapToRecord(r)
+    }
+
+    func deleteRecord(id: UUID) async throws {
+        struct DeleteResponse: Codable {
+            let success: Bool
+        }
+        let _: DeleteResponse = try await APIClient.shared.delete(path: "/api/service-records/\(id.uuidString)")
+    }
+}
+
+// MARK: - Deletion Request Service
+@MainActor
+class DeletionRequestService {
+    static let shared = DeletionRequestService()
+    
+    struct RequestResponse: Codable {
+        let id: String
+        let requesterId: String
+        let targetType: String
+        let targetId: String
+        let targetName: String?
+        let reason: String?
+        let status: String
+        let adminNotes: String?
+        let processedBy: String?
+        let processedAt: String?
+        let createdAt: String?
+    }
+    
+    private func mapToRequest(_ r: RequestResponse) -> DeletionRequest {
+        DeletionRequest(
+            id: UUID(uuidString: r.id)!,
+            requesterId: UUID(uuidString: r.requesterId)!,
+            targetType: r.targetType,
+            targetId: UUID(uuidString: r.targetId)!,
+            targetName: r.targetName,
+            reason: r.reason,
+            status: RequestStatus(rawValue: r.status) ?? .pending,
+            adminNotes: r.adminNotes,
+            processedBy: r.processedBy.flatMap { UUID(uuidString: $0) },
+            processedAt: parseISO8601Date(r.processedAt),
+            createdAt: parseISO8601Date(r.createdAt)
+        )
+    }
+    
+    func listRequests() async throws -> [DeletionRequest] {
+        let responses: [RequestResponse] = try await APIClient.shared.get(path: "/api/deletion-requests")
+        return responses.map(mapToRequest)
+    }
+    
+    func createRequest(_ insert: DeletionRequestInsert) async throws {
+        let _: RequestResponse = try await APIClient.shared.post(path: "/api/deletion-requests", body: insert)
+    }
+    
+    func approveRequest(id: UUID, adminNotes: String?) async throws {
+        struct ApproveBody: Codable {
+            let adminNotes: String?
+        }
+        let _: RequestResponse = try await APIClient.shared.put(
+            path: "/api/deletion-requests/\(id.uuidString)/approve",
+            body: ApproveBody(adminNotes: adminNotes)
+        )
+    }
+    
+    func rejectRequest(id: UUID, adminNotes: String?) async throws {
+        struct RejectBody: Codable {
+            let adminNotes: String?
+        }
+        let _: RequestResponse = try await APIClient.shared.put(
+            path: "/api/deletion-requests/\(id.uuidString)/reject",
+            body: RejectBody(adminNotes: adminNotes)
+        )
+    }
+}
+
+
+// MARK: - Training Material Service
+@MainActor
+class TrainingMaterialService {
+    static let shared = TrainingMaterialService()
+    
+    private struct MaterialResponse: Codable {
+        let id: String
+        let packageId: String?
+        let category: String
+        let storeId: String?
+        let title: String
+        let version: String
+        let fileUrl: String
+        let fileType: String
+        let description: String?
+        let uploadedBy: String?
+        let isActive: Bool
+        let createdAt: String?
+        let updatedAt: String?
+    }
+    
+    func listMaterials(category: TrainingMaterialCategory? = nil, storeId: UUID? = nil) async throws -> [TrainingMaterial] {
+        var queryItems: [String] = []
+        if let category = category {
+            queryItems.append("category=\(category.rawValue)")
+        }
+        if let storeId = storeId {
+            queryItems.append("storeId=\(storeId.uuidString)")
+        }
+        let query = queryItems.isEmpty ? "" : "?" + queryItems.joined(separator: "&")
+        
+        let responses: [MaterialResponse] = try await APIClient.shared.get(path: "/api/training-materials" + query)
+        return responses.map { r in
+            TrainingMaterial(
+                id: UUID(uuidString: r.id)!,
+                packageId: r.packageId.flatMap { UUID(uuidString: $0) },
+                category: TrainingMaterialCategory(rawValue: r.category) ?? .general,
+                storeId: r.storeId.flatMap { UUID(uuidString: $0) },
+                title: r.title,
+                version: r.version,
+                fileUrl: r.fileUrl,
+                fileType: FileType(rawValue: r.fileType) ?? .pdf,
+                description: r.description,
+                uploadedBy: r.uploadedBy.flatMap { UUID(uuidString: $0) },
+                isActive: r.isActive,
+                createdAt: nil,
+                updatedAt: nil
+            )
+        }
+    }
+    
+    func createMaterial(_ insert: TrainingMaterialInsert) async throws -> TrainingMaterial {
+        let r: MaterialResponse = try await APIClient.shared.post(path: "/api/training-materials", body: insert)
+        return TrainingMaterial(
+            id: UUID(uuidString: r.id)!,
+            packageId: r.packageId.flatMap { UUID(uuidString: $0) },
+            category: TrainingMaterialCategory(rawValue: r.category) ?? .general,
+            storeId: r.storeId.flatMap { UUID(uuidString: $0) },
+            title: r.title,
+            version: r.version,
+            fileUrl: r.fileUrl,
+            fileType: FileType(rawValue: r.fileType) ?? .pdf,
+            description: r.description,
+            uploadedBy: r.uploadedBy.flatMap { UUID(uuidString: $0) },
+            isActive: r.isActive,
+            createdAt: nil,
+            updatedAt: nil
+        )
+    }
+    
+    func deleteMaterial(id: UUID) async throws {
+        struct DeleteResponse: Codable {
+            let success: Bool
+        }
+        let _: DeleteResponse = try await APIClient.shared.delete(path: "/api/training-materials/\(id.uuidString)")
     }
 }

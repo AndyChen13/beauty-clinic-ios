@@ -114,7 +114,14 @@ router.post('/', async (req, res) => {
       },
     });
 
-    // Update customer remaining sessions
+    // Update customer remaining sessions and last visit
+    await prisma.customer.update({
+      where: { id: data.customerId },
+      data: { 
+        remainingSessions: newRemaining >= 0 ? newRemaining : 0,
+        lastVisit: new Date(),
+      },
+    });
     await prisma.customer.update({
       where: { id: data.customerId },
       data: { remainingSessions: newRemaining >= 0 ? newRemaining : 0 },

@@ -1,0 +1,3 @@
+# 在腾讯云服务器上执行这个命令（单行）：
+
+sudo certbot certonly --standalone --preferred-challenges http -d 124.221.217.56 --agree-tos --non-interactive --register-unsafely-without-email

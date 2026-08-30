@@ -6,33 +6,47 @@ struct ServiceRecordEditView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var userState: UserState
     
+    let record: ServiceRecord?
     let customer: Customer
     let transactions: [Transaction]
     let onSave: (ServiceRecord) -> Void
+    
+    private var isEditing: Bool { record != nil }
     
     @State private var selectedTransactionId: UUID?
     @State private var serviceDate = Date()
     @State private var operatorName = ""
     @State private var operatorPhone = ""
     @State private var bodyPart = ""
+    @State private var serviceDetails = ""
     @State private var customerFeedback = ""
     @State private var extraPayment = ""
     @State private var extraPaymentNote = ""
     @State private var sessionsUsed = "1"
     @State private var extraSessions = ""
     @State private var selectedPhotos: [PhotosPickerItem] = []
-    @State private var photoDataList: [Data] = []
+    @State private var newPhotoDataList: [Data] = []
+    @State private var existingPhotoUrls: [String] = []
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
     
-    private var customerTransactions: [Transaction] {
-        transactions.filter { $0.customerId == customer.id }
+    /// 可消耗的剩余品类；编辑时始终包含原关联品类
+    private var availableTransactions: [Transaction] {
+        let all = transactions.filter { $0.customerId == customer.id }
+        guard let record = record else {
+            return all.filter { $0.remainingSessions > 0 }
+        }
+        return all.filter { $0.id == record.transactionId || $0.remainingSessions > 0 }
     }
     
-    /// 当前客户剩余次数（从客户档案读取）
+    /// 当前剩余次数：若选了具体品类则显示该品类剩余，否则显示客户总剩余
     private var currentRemaining: Int {
-        customer.remainingSessions ?? 0
+        if let txId = selectedTransactionId,
+           let tx = availableTransactions.first(where: { $0.id == txId }) {
+            return tx.remainingSessions
+        }
+        return customer.remainingSessions ?? 0
     }
     
     /// 本次消耗次数
@@ -53,12 +67,18 @@ struct ServiceRecordEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("服务信息") {
-                    if !customerTransactions.isEmpty {
-                        Picker("关联成交", selection: $selectedTransactionId) {
-                            Text("请选择").tag(nil as UUID?)
-                            ForEach(customerTransactions) { t in
-                                Text("\(t.packageName ?? "套餐") (¥\(Int(t.amount)))").tag(t.id as UUID?)
+                Section("消耗剩余品类") {
+                    if availableTransactions.isEmpty {
+                        Text("当前无剩余品类可选，无法保存")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
+                    } else {
+                        Picker("选择品类", selection: $selectedTransactionId) {
+                            ForEach(availableTransactions) { t in
+                                Text("\(t.packageName ?? "套餐") 剩余 \(t.remainingSessions)/\(t.totalSessions) 次 · ¥\(Int(t.amount))")
+                                    .tag(t.id as UUID?)
                             }
                         }
                     }
@@ -72,8 +92,16 @@ struct ServiceRecordEditView: View {
                         .keyboardType(.phonePad)
                 }
                 
-                Section("服务详情") {
+                Section("操作信息") {
                     TextField("操作部位 *", text: $bodyPart)
+                }
+                
+                Section("服务记录") {
+                    TextEditor(text: $serviceDetails)
+                        .frame(minHeight: 80)
+                }
+                
+                Section("客户反馈") {
                     TextEditor(text: $customerFeedback)
                         .frame(minHeight: 60)
                 }
@@ -123,16 +151,55 @@ struct ServiceRecordEditView: View {
                 }
                 
                 Section("照片留存") {
-                    if !photoDataList.isEmpty {
+                    if !existingPhotoUrls.isEmpty || !newPhotoDataList.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(photoDataList.indices, id: \.self) { index in
-                                    if let uiImage = UIImage(data: photoDataList[index]) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
+                                ForEach(existingPhotoUrls.indices, id: \.self) { index in
+                                    if let url = URL(string: existingPhotoUrls[index]) {
+                                        ZStack(alignment: .topTrailing) {
+                                            AsyncImage(url: url) { phase in
+                                                switch phase {
+                                                case .success(let image):
+                                                    image.resizable().scaledToFill()
+                                                default:
+                                                    Color.gray
+                                                }
+                                            }
                                             .frame(width: 80, height: 80)
                                             .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            
+                                            Button {
+                                                existingPhotoUrls.remove(at: index)
+                                            } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .foregroundColor(.white)
+                                                    .background(Color.black.opacity(0.6))
+                                                    .clipShape(Circle())
+                                            }
+                                            .offset(x: 4, y: -4)
+                                        }
+                                    }
+                                }
+                                
+                                ForEach(newPhotoDataList.indices, id: \.self) { index in
+                                    if let uiImage = UIImage(data: newPhotoDataList[index]) {
+                                        ZStack(alignment: .topTrailing) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 80, height: 80)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            
+                                            Button {
+                                                newPhotoDataList.remove(at: index)
+                                            } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .foregroundColor(.white)
+                                                    .background(Color.black.opacity(0.6))
+                                                    .clipShape(Circle())
+                                            }
+                                            .offset(x: 4, y: -4)
+                                        }
                                     }
                                 }
                             }
@@ -140,13 +207,13 @@ struct ServiceRecordEditView: View {
                     }
                     
                     PhotosPicker(selection: $selectedPhotos, matching: .images, photoLibrary: .shared()) {
-                        Label(photoDataList.isEmpty ? "添加照片" : "继续添加", systemImage: "photo")
+                        Label("添加照片", systemImage: "photo")
                     }
                     .onChange(of: selectedPhotos) { _, newItems in
                         Task {
                             for item in newItems {
                                 if let data = try? await item.loadTransferable(type: Data.self) {
-                                    photoDataList.append(data)
+                                    newPhotoDataList.append(data)
                                 }
                             }
                             selectedPhotos = []
@@ -154,7 +221,7 @@ struct ServiceRecordEditView: View {
                     }
                 }
             }
-            .navigationTitle("添加服务记录")
+            .navigationTitle(isEditing ? "编辑服务记录" : "添加服务记录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -168,7 +235,7 @@ struct ServiceRecordEditView: View {
                             Text("保存")
                         }
                     }
-                    .disabled(operatorName.isEmpty || bodyPart.isEmpty || isSaving)
+                    .disabled(operatorName.isEmpty || bodyPart.isEmpty || selectedTransactionId == nil || isSaving)
                 }
             }
             .alert("保存失败", isPresented: $showError) {
@@ -177,22 +244,48 @@ struct ServiceRecordEditView: View {
                 Text(errorMessage)
             }
             .onAppear {
-                operatorName = userState.currentUser?.name ?? ""
+                loadExistingRecord()
+            }
+        }
+    }
+    
+    private func loadExistingRecord() {
+        if let record = record {
+            selectedTransactionId = record.transactionId
+            serviceDate = record.serviceDate
+            operatorName = record.operatorName ?? ""
+            operatorPhone = record.operatorPhone ?? ""
+            bodyPart = record.bodyPart ?? ""
+            serviceDetails = record.serviceDetails ?? ""
+            customerFeedback = record.customerFeedback ?? ""
+            extraPayment = record.extraPayment > 0 ? String(format: "%.2f", record.extraPayment) : ""
+            extraPaymentNote = record.extraPaymentNote ?? ""
+            sessionsUsed = "\(record.sessionsUsed)"
+            existingPhotoUrls = record.photos ?? []
+        } else {
+            operatorName = userState.currentUser?.name ?? ""
+            if selectedTransactionId == nil, let first = availableTransactions.first {
+                selectedTransactionId = first.id
             }
         }
     }
     
     private func saveRecord() {
         guard !operatorName.isEmpty, !bodyPart.isEmpty else { return }
+        guard let transactionId = selectedTransactionId else {
+            errorMessage = "请选择消耗的品类"
+            showError = true
+            return
+        }
         
         isSaving = true
         
         Task {
             do {
-                var photoUrls: [String] = []
+                var photoUrls: [String] = existingPhotoUrls
                 
-                // Upload photos
-                for photoData in photoDataList {
+                // Upload new photos
+                for photoData in newPhotoDataList {
                     let fileName = "service-\(UUID().uuidString).jpg"
                     let url = try await TencentCOSUploadService.uploadImage(photoData, key: fileName)
                     photoUrls.append(url)
@@ -201,47 +294,43 @@ struct ServiceRecordEditView: View {
                 let extraPaymentValue = Double(extraPayment) ?? 0
                 let newRemaining = calculatedRemaining
                 
-                let record = ServiceRecordInsert(
-                    customerId: customer.id,
-                    transactionId: selectedTransactionId,
-                    serviceDate: serviceDate,
-                    operatorId: userState.currentUser?.id,
-                    operatorName: operatorName,
-                    operatorPhone: operatorPhone.isEmpty ? nil : operatorPhone,
-                    bodyPart: bodyPart,
-                    photos: photoUrls.isEmpty ? nil : photoUrls,
-                    customerFeedback: customerFeedback.isEmpty ? nil : customerFeedback,
-                    extraPayment: extraPaymentValue,
-                    extraPaymentNote: extraPaymentNote.isEmpty ? nil : extraPaymentNote,
-                    sessionsUsed: sessionsUsedValue,
-                    remainingSessions: newRemaining
-                )
-                
-                let created: [ServiceRecord] = try await supabase
-                    .from("service_records")
-                    .insert(record)
-                    .select()
-                    .execute()
-                    .value
-                
-                // Update customer remaining_sessions and last_visit
-                struct CustomerRemainingUpdate: Encodable {
-                    let remaining_sessions: Int
-                    let last_visit: String
+                if let record = record {
+                    let update = ServiceRecordUpdate(
+                        transactionId: transactionId,
+                        serviceDate: serviceDate,
+                        operatorName: operatorName,
+                        operatorPhone: operatorPhone,
+                        bodyPart: bodyPart,
+                        serviceDetails: serviceDetails,
+                        photos: photoUrls,
+                        customerFeedback: customerFeedback,
+                        extraPayment: extraPaymentValue,
+                        extraPaymentNote: extraPaymentNote,
+                        sessionsUsed: sessionsUsedValue,
+                        remainingSessions: newRemaining >= 0 ? newRemaining : 0
+                    )
+                    let updated = try await ServiceRecordService.shared.updateRecord(id: record.id, update)
+                    onSave(updated)
+                } else {
+                    let recordInsert = ServiceRecordInsert(
+                        customerId: customer.id,
+                        transactionId: transactionId,
+                        serviceDate: serviceDate,
+                        operatorId: userState.currentUser?.id,
+                        operatorName: operatorName,
+                        operatorPhone: operatorPhone.isEmpty ? nil : operatorPhone,
+                        bodyPart: bodyPart,
+                        serviceDetails: serviceDetails.isEmpty ? nil : serviceDetails,
+                        photos: photoUrls.isEmpty ? nil : photoUrls,
+                        customerFeedback: customerFeedback.isEmpty ? nil : customerFeedback,
+                        extraPayment: extraPaymentValue,
+                        extraPaymentNote: extraPaymentNote.isEmpty ? nil : extraPaymentNote,
+                        sessionsUsed: sessionsUsedValue,
+                        remainingSessions: newRemaining >= 0 ? newRemaining : 0
+                    )
+                    let created = try await ServiceRecordService.shared.createRecord(recordInsert)
+                    onSave(created)
                 }
-                
-                let customerUpdate = CustomerRemainingUpdate(
-                    remaining_sessions: newRemaining,
-                    last_visit: ISO8601DateFormatter().string(from: Date())
-                )
-                
-                _ = try await supabase
-                    .from("customers")
-                    .update(customerUpdate)
-                    .eq("id", value: customer.id)
-                    .execute()
-                
-                onSave(created.first!)
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
@@ -254,6 +343,7 @@ struct ServiceRecordEditView: View {
 
 #Preview {
     ServiceRecordEditView(
+        record: nil,
         customer: Customer(
             id: UUID(),
             phone: "13800138000",
@@ -266,6 +356,8 @@ struct ServiceRecordEditView: View {
             associatedStoreId: nil,
             createdBy: nil,
             lastVisit: nil,
+            firstTransactionAmount: nil,
+            amountReceived: nil,
             outstandingAmount: 0,
             conversionProbability: 50,
             remainingSessions: 5,

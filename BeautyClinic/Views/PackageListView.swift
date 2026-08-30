@@ -4,11 +4,10 @@ import SwiftUI
 struct PackageListView: View {
     @EnvironmentObject var userState: UserState
     @State private var packages: [ServicePackage] = []
-    @State private var trainingMaterials: [TrainingMaterial] = []
     @State private var isLoading = false
     @State private var showingAddSheet = false
+    @State private var packageToEdit: ServicePackage?
     @State private var selectedCategory: PackageCategory? = nil
-    @State private var selectedTab = 0
     @State private var showingDeleteRequest = false
     @State private var packageToDelete: ServicePackage?
     @State private var deleteReason = ""
@@ -22,26 +21,24 @@ struct PackageListView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Picker("类型", selection: $selectedTab) {
-                    Text("服务套餐").tag(0)
-                    Text("培训材料").tag(1)
+            packagesView
+                .navigationTitle("服务套餐")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showingAddSheet = true }) {
+                            Image(systemName: "plus")
+                        }
+                    }
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                
-                if selectedTab == 0 {
-                    packagesView
-                } else {
-                    trainingView
+                .sheet(isPresented: $showingAddSheet) {
+                    PackageEditView(mode: .create) { newPackage in
+                        packages.append(newPackage)
+                    }
                 }
-            }
-            .navigationTitle(selectedTab == 0 ? "服务套餐" : "培训材料")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingAddSheet = true }) {
-                        Image(systemName: "plus")
+            .sheet(item: $packageToEdit) { package in
+                PackageEditView(mode: .edit(package)) { updated in
+                    if let index = packages.firstIndex(where: { $0.id == updated.id }) {
+                        packages[index] = updated
                     }
                 }
             }
@@ -104,6 +101,12 @@ struct PackageListView: View {
                 List {
                     ForEach(filteredPackages) { package in
                         PackageRow(package: package)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if userState.isAdmin {
+                                    packageToEdit = package
+                                }
+                            }
                             .swipeActions(edge: .trailing) {
                                 if userState.isAdmin {
                                     Button(role: .destructive) {
@@ -128,45 +131,11 @@ struct PackageListView: View {
         }
     }
     
-    private var trainingView: some View {
-        Group {
-            if isLoading && trainingMaterials.isEmpty {
-                List {
-                    ForEach(0..<5) { _ in
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(UIColor.secondarySystemBackground))
-                            .frame(height: 72)
-                            .shimmering()
-                    }
-                }
-                .listStyle(.plain)
-            } else if trainingMaterials.isEmpty {
-                EmptyStateView(
-                    icon: "book.fill",
-                    title: "暂无培训材料",
-                    subtitle: "点击右上角添加PPT"
-                )
-                .padding(.top, 60)
-            } else {
-                List {
-                    ForEach(trainingMaterials) { material in
-                        TrainingMaterialRow(material: material)
-                    }
-                }
-                .listStyle(.plain)
-            }
-        }
-    }
-    
     private func deletePackage(_ package: ServicePackage) {
         guard userState.isAdmin else { return }
         Task {
             do {
-                _ = try await supabase
-                    .from("packages")
-                    .delete()
-                    .eq("id", value: package.id)
-                    .execute()
+                try await PackageService.shared.deletePackage(id: package.id)
                 await MainActor.run {
                     packages.removeAll { $0.id == package.id }
                 }
@@ -188,10 +157,7 @@ struct PackageListView: View {
                     targetName: package.name,
                     reason: deleteReason.isEmpty ? nil : deleteReason
                 )
-                _ = try await supabase
-                    .from("deletion_requests")
-                    .insert(request)
-                    .execute()
+                try await DeletionRequestService.shared.createRequest(request)
                 await MainActor.run {
                     deleteReason = ""
                     packageToDelete = nil
@@ -208,24 +174,8 @@ struct PackageListView: View {
         defer { isLoading = false }
         
         do {
-            async let packagesTask: [ServicePackage] = supabase
-                .from("packages")
-                .select()
-                .order("created_at", ascending: false)
-                .execute()
-                .value
-            
-            async let trainingTask: [TrainingMaterial] = supabase
-                .from("training_materials")
-                .select()
-                .eq("is_active", value: true)
-                .order("created_at", ascending: false)
-                .execute()
-                .value
-            
-            let (p, t) = try await (packagesTask, trainingTask)
+            let (p, _) = try await PackageService.shared.listPackages()
             packages = p
-            trainingMaterials = t
         } catch {
             print("Error loading packages: \(error)")
         }
@@ -289,51 +239,6 @@ struct PackageRow: View {
                 Image(systemName: "sparkles")
                     .foregroundColor(.accentColor.opacity(0.5))
             )
-    }
-}
-
-struct TrainingMaterialRow: View {
-    let material: TrainingMaterial
-    
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: material.fileType.icon)
-                .font(.system(size: 24))
-                .foregroundColor(.orange)
-                .frame(width: 48, height: 48)
-                .background(Color.orange.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(material.title)
-                    .font(.subheadline.weight(.medium))
-                HStack(spacing: 6) {
-                    Text("v\(material.version)")
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.12))
-                        .foregroundColor(.orange)
-                        .clipShape(Capsule())
-                    Text(material.fileType.displayName)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                if let desc = material.description, !desc.isEmpty {
-                    Text(desc)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.vertical, 6)
     }
 }
 

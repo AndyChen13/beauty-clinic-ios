@@ -144,20 +144,55 @@ extension View {
 // MARK: - Transaction Mini Row
 struct TransactionMiniRow: View {
     let transaction: Transaction
+    var onPay: (() -> Void)? = nil
+    
+    private var isPaymentLike: Bool {
+        transaction.status == .paid || transaction.status == .refunded
+    }
+    
+    private var displayTitle: String {
+        if transaction.status == .paid {
+            return "收款 · \(transaction.packageName ?? "未知套餐")"
+        } else if transaction.status == .refunded {
+            return "退款 · \(transaction.packageName ?? "未知套餐")"
+        }
+        return transaction.packageName ?? "未知套餐"
+    }
     
     var body: some View {
-        HStack {
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(transaction.packageName ?? "未知套餐")
+                Text(displayTitle)
                     .font(.subheadline.weight(.medium))
                 Text(transaction.transactionDate.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                if !isPaymentLike {
+                    Text("\(transaction.completedSessions)/\(transaction.totalSessions) 次 · 剩余 \(transaction.remainingSessions) 次")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
-            Text("¥\(String(format: "%.0f", transaction.amount))")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.accentColor)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("¥\(String(format: "%.0f", transaction.status == .paid ? (transaction.amountReceived ?? 0) : transaction.amount))")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(transaction.status == .refunded ? .red : (transaction.status == .paid ? .green : .accentColor))
+                Text(transaction.status.displayName)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(transaction.status.color.opacity(0.15))
+                    .foregroundColor(transaction.status.color)
+                    .clipShape(Capsule())
+                if let onPay = onPay, (transaction.outstandingAmount ?? 0) > 0 {
+                    Button("收款") {
+                        onPay()
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.green)
+                }
+            }
         }
         .padding(.vertical, 6)
     }

@@ -1,4 +1,3 @@
-// Views/MainTabView.swift
 import SwiftUI
 
 struct MainTabView: View {
@@ -37,11 +36,31 @@ struct MainTabView: View {
                 }
                 .tag(4)
             
-            SettingsView()
+            TrainingMaterialsView()
                 .tabItem {
-                    Label("设置", systemImage: "gearshape.fill")
+                    Label("培训", systemImage: "folder.fill.badge.person.crop")
                 }
                 .tag(5)
+            
+            if userState.currentUser?.isSuperAdmin == true {
+                UserManagementView()
+                    .tabItem {
+                        Label("用户", systemImage: "person.badge.key.fill")
+                    }
+                    .tag(6)
+                
+                SettingsView()
+                    .tabItem {
+                        Label("设置", systemImage: "gearshape.fill")
+                    }
+                    .tag(7)
+            } else {
+                SettingsView()
+                    .tabItem {
+                        Label("设置", systemImage: "gearshape.fill")
+                    }
+                    .tag(6)
+            }
         }
         .environmentObject(userState)
     }

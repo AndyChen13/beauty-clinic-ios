@@ -12,22 +12,27 @@ enum COSConfig {
 // MARK: - Upload Service
 enum TencentCOSUploadService {
     
-    /// Upload image data to Tencent Cloud COS via local Python sign server
+    /// Upload image data to Tencent Cloud COS via SCF sign server
     static func uploadImage(_ data: Data, key: String? = nil) async throws -> String {
         let fileKey = key ?? "\(UUID().uuidString).jpg"
+        return try await uploadFile(data, key: fileKey, contentType: "image/jpeg")
+    }
+    
+    /// Upload any file data to COS with the given MIME type
+    static func uploadFile(_ data: Data, key: String? = nil, contentType: String) async throws -> String {
+        let fileKey = key ?? "\(UUID().uuidString)"
         let encodedKey = fileKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileKey
         
         guard let url = URL(string: "\(COSConfig.uploadEndpoint)/\(encodedKey)") else {
             throw COSError.invalidURL
         }
         
-        // Get authorization from local sign server
-        let authorization = try await fetchAuthorization(key: fileKey)
+        let authorization = try await fetchAuthorization(key: fileKey, contentType: contentType)
         
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.httpBody = data
-        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue(COSConfig.bucket + ".cos." + COSConfig.region + ".myqcloud.com", forHTTPHeaderField: "Host")
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
         
@@ -50,9 +55,9 @@ enum TencentCOSUploadService {
         return "\(COSConfig.domain)/\(encodedKey)"
     }
     
-    // MARK: - Call Local Sign Server
+    // MARK: - Call Sign Server
     
-    private static func fetchAuthorization(key: String) async throws -> String {
+    private static func fetchAuthorization(key: String, contentType: String) async throws -> String {
         let signURLString = "https://1472260859-dch399pbek.ap-shanghai.tencentscf.com/sign"
         
         guard let signURL = URL(string: signURLString) else {
@@ -64,7 +69,8 @@ enum TencentCOSUploadService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "key": key,
-            "method": "put"
+            "method": "put",
+            "content_type": contentType
         ])
         request.timeoutInterval = 10
         

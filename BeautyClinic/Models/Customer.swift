@@ -1,5 +1,47 @@
 // Models/Customer.swift
 import Foundation
+import SwiftUI
+
+enum CustomerTag: String, CaseIterable {
+    case photoElectric = "光电"
+    case medicalBeauty = "医美"
+    
+    var displayName: String {
+        switch self {
+        case .photoElectric: return "光 · 电"
+        case .medicalBeauty: return "医 · 美"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .photoElectric: return .cyan
+        case .medicalBeauty: return .purple
+        }
+    }
+}
+
+extension Customer {
+    /// 客户可同时属于多个板块；未设置时默认「光 · 电」
+    var branchTags: [CustomerTag] {
+        guard let raw = preferences?["branch"], !raw.isEmpty else { return [.photoElectric] }
+        return raw.split(separator: ",").compactMap { CustomerTag(rawValue: String($0)) }
+    }
+    
+    var branchTagString: String {
+        CustomerTag.allCases
+            .filter { branchTags.contains($0) }
+            .map { $0.rawValue }
+            .joined(separator: ",")
+    }
+    
+    var preferencesNotes: String {
+        guard let prefs = preferences else { return "" }
+        return prefs.filter { $0.key != "branch" }
+            .map { "\($0.key): \($0.value)" }
+            .joined(separator: "\n")
+    }
+}
 
 struct Customer: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
@@ -13,6 +55,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     let associatedStoreId: UUID?
     let createdBy: UUID?
     let lastVisit: Date?
+    let firstTransactionDate: Date?
     let firstTransactionAmount: Double?
     let amountReceived: Double?
     let outstandingAmount: Double?
@@ -29,6 +72,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         case associatedStoreId = "associated_store_id"
         case createdBy = "created_by"
         case lastVisit = "last_visit"
+        case firstTransactionDate = "first_transaction_date"
         case firstTransactionAmount = "first_transaction_amount"
         case amountReceived = "amount_received"
         case outstandingAmount = "outstanding_amount"
@@ -74,6 +118,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         associatedStoreId: UUID? = nil,
         createdBy: UUID? = nil,
         lastVisit: Date? = nil,
+        firstTransactionDate: Date? = nil,
         firstTransactionAmount: Double? = nil,
         amountReceived: Double? = nil,
         outstandingAmount: Double? = nil,
@@ -93,6 +138,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         self.associatedStoreId = associatedStoreId
         self.createdBy = createdBy
         self.lastVisit = lastVisit
+        self.firstTransactionDate = firstTransactionDate
         self.firstTransactionAmount = firstTransactionAmount
         self.amountReceived = amountReceived
         self.outstandingAmount = outstandingAmount
@@ -111,6 +157,8 @@ struct CustomerInsert: Codable, Sendable {
     let medicalHistory: String?
     let preferences: [String: String]?
     let associatedStoreId: UUID?
+    let photoUrl: String?
+    let firstTransactionDate: Date?
     let firstTransactionAmount: Double?
     let amountReceived: Double?
     let outstandingAmount: Double?
@@ -122,6 +170,8 @@ struct CustomerInsert: Codable, Sendable {
         case medicalHistory = "medical_history"
         case preferences
         case associatedStoreId = "associated_store_id"
+        case photoUrl = "photo_url"
+        case firstTransactionDate = "first_transaction_date"
         case firstTransactionAmount = "first_transaction_amount"
         case amountReceived = "amount_received"
         case outstandingAmount = "outstanding_amount"
@@ -159,8 +209,8 @@ enum PhotoType: String, Codable, Sendable, CaseIterable {
     var displayName: String {
         switch self {
         case .profile: return "头像"
-        case .before: return "治疗前"
-        case .after: return "治疗后"
+        case .before: return "护理前"
+        case .after: return "护理后"
         case .progress: return "进度照"
         }
     }

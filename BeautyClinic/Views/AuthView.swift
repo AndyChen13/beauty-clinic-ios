@@ -35,9 +35,9 @@ struct AuthView: View {
                                 .font(.system(size: 36))
                                 .foregroundColor(.accentColor)
                         )
-                    Text("Beauty Clinic")
+                    Text("Beauty Manager")
                         .font(.largeTitle.weight(.bold))
-                    Text("医美内部管理系统")
+                    Text("内部管理系统")
                         .font(.headline)
                         .foregroundStyle(.secondary)
                 }

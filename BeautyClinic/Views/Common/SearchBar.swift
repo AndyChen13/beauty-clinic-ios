@@ -1,5 +1,5 @@
 //  Views/Common/SearchBar.swift
-//  BeautyClinic
+//  BeautyManager
 //
 
 import SwiftUI

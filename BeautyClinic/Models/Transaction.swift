@@ -9,6 +9,8 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
     let packageId: UUID
     let staffUserId: UUID?
     let amount: Double
+    let amountReceived: Double?
+    let outstandingAmount: Double?
     let totalSessions: Int
     let completedSessions: Int
     let transactionDate: Date
@@ -30,6 +32,8 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
         case packageId = "package_id"
         case staffUserId = "staff_user_id"
         case amount
+        case amountReceived = "amount_received"
+        case outstandingAmount = "outstanding_amount"
         case totalSessions = "total_sessions"
         case completedSessions = "completed_sessions"
         case transactionDate = "transaction_date"
@@ -60,6 +64,7 @@ enum TransactionStatus: String, Codable, Sendable, CaseIterable {
     case completed = "completed"
     case cancelled = "cancelled"
     case refunded = "refunded"
+    case paid = "paid"
     
     var displayName: String {
         switch self {
@@ -69,6 +74,7 @@ enum TransactionStatus: String, Codable, Sendable, CaseIterable {
         case .completed: return "已完成"
         case .cancelled: return "已取消"
         case .refunded: return "已退款"
+        case .paid: return "已收款"
         }
     }
     
@@ -80,6 +86,7 @@ enum TransactionStatus: String, Codable, Sendable, CaseIterable {
         case .completed: return .green
         case .cancelled: return .red
         case .refunded: return .gray
+        case .paid: return .green
         }
     }
 }
@@ -87,9 +94,11 @@ enum TransactionStatus: String, Codable, Sendable, CaseIterable {
 struct TransactionInsert: Codable, Sendable {
     let customerId: UUID
     let storeId: UUID
-    let packageId: UUID
+    let packageId: UUID?
     let staffUserId: UUID?
     let amount: Double
+    let amountReceived: Double?
+    let outstandingAmount: Double?
     let totalSessions: Int
     let transactionDate: Date
     let estimatedCompletionDate: Date?
@@ -102,10 +111,22 @@ struct TransactionInsert: Codable, Sendable {
         case packageId = "package_id"
         case staffUserId = "staff_user_id"
         case amount
+        case amountReceived = "amount_received"
+        case outstandingAmount = "outstanding_amount"
         case totalSessions = "total_sessions"
         case transactionDate = "transaction_date"
         case estimatedCompletionDate = "estimated_completion_date"
         case status, notes
+    }
+}
+
+struct TransactionUpdate: Codable, Sendable {
+    let amountReceived: Double?
+    let outstandingAmount: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case amountReceived = "amount_received"
+        case outstandingAmount = "outstanding_amount"
     }
 }
 

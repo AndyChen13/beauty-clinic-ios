@@ -62,8 +62,56 @@ struct StoreDetailView: View {
                 
                 // Meta Card
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("其他信息")
-                        .font(.headline)
+                    HStack {
+                        Text("其他信息")
+                            .font(.headline)
+                        
+                        Spacer()
+                        
+                        if userState.isAdmin {
+                            Button {
+                                showingEditSheet = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "pencil")
+                                    Text("编辑")
+                                }
+                                .font(.subheadline.weight(.medium))
+                            }
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("门店简介")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let introduction = store.introduction, !introduction.isEmpty {
+                            Text(introduction)
+                                .font(.subheadline)
+                        } else {
+                            Text("暂无简介，点击右上角编辑添加")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("门店备注")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let notes = store.notes, !notes.isEmpty {
+                            Text(notes)
+                                .font(.subheadline)
+                        } else {
+                            Text("暂无备注，点击右上角编辑添加")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Divider()
                     
                     if let createdAt = store.createdAt {
                         InfoRow(label: "创建时间", value: createdAt.formatted())
@@ -106,6 +154,8 @@ struct StoreDetailView: View {
                 status: .active,
                 managerId: nil,
                 imageUrl: nil,
+                notes: "测试备注",
+                introduction: "测试简介",
                 createdAt: Date(),
                 updatedAt: nil
             ),

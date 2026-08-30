@@ -78,6 +78,20 @@ router.put('/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// DELETE /api/packages/:id (admin only)
+router.delete('/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.servicePackage.delete({
+      where: { id },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete package error:', error);
+    res.status(500).json({ error: '删除套餐失败' });
+  }
+});
+
 // Training materials endpoints
 router.post('/:id/materials', requireAdmin, async (req, res) => {
   try {

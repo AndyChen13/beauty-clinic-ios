@@ -18,11 +18,38 @@ struct CustomerListView: View {
     @State private var showFinalDeleteConfirm = false
     @State private var pendingDeliveryCount = 0
     @State private var deleteTargetCustomer: Customer?
+    @State private var selectedTagFilter: TagFilter = .all
+    
+    enum TagFilter: CaseIterable {
+        case all, photoElectric, medicalBeauty, both
+        
+        var title: String {
+            switch self {
+            case .all: return "全部"
+            case .photoElectric: return "光 · 电"
+            case .medicalBeauty: return "医 · 美"
+            case .both: return "光+医"
+            }
+        }
+    }
     
     var filteredCustomers: [Customer] {
-        if searchTerm.isEmpty { return customers }
+        var result = customers
+        switch selectedTagFilter {
+        case .all:
+            break
+        case .photoElectric:
+            result = result.filter { $0.branchTags.contains(.photoElectric) }
+        case .medicalBeauty:
+            result = result.filter { $0.branchTags.contains(.medicalBeauty) }
+        case .both:
+            result = result.filter {
+                $0.branchTags.contains(.photoElectric) && $0.branchTags.contains(.medicalBeauty)
+            }
+        }
+        if searchTerm.isEmpty { return result }
         let term = searchTerm.lowercased()
-        return customers.filter {
+        return result.filter {
             $0.name.lowercased().contains(term) || $0.phone.contains(term)
         }
     }
@@ -33,6 +60,22 @@ struct CustomerListView: View {
                 SearchBar(text: $searchTerm, placeholder: "搜索客户...")
                     .padding(.horizontal)
                     .padding(.vertical, 8)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(TagFilter.allCases, id: \.self) { filter in
+                            CustomerTagChip(
+                                title: filter.title,
+                                isSelected: selectedTagFilter == filter,
+                                color: .primary
+                            ) {
+                                selectedTagFilter = filter
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.bottom, 6)
                 
                 if isLoading && customers.isEmpty {
                     List {
@@ -200,6 +243,26 @@ struct CustomerListView: View {
     }
 }
 
+struct CustomerTagChip: View {
+    let title: String
+    let isSelected: Bool
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(isSelected ? color.opacity(0.15) : Color(UIColor.secondarySystemBackground))
+                .foregroundStyle(isSelected ? color : .primary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct CustomerRow: View {
     let customer: Customer
     
@@ -218,8 +281,19 @@ struct CustomerRow: View {
             }
             
             VStack(alignment: .leading, spacing: 3) {
-                Text(customer.name)
-                    .font(.subheadline.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(customer.name)
+                        .font(.subheadline.weight(.medium))
+                    ForEach(customer.branchTags, id: \.self) { tag in
+                        Text(tag.displayName)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(tag.color)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(tag.color.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+                }
                 Text(customer.phone)
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -1,0 +1,15 @@
+# 在腾讯云服务器上执行（自签名证书）
+
+sudo mkdir -p /etc/ssl/private/beautyclinic
+
+sudo openssl genrsa -out /etc/ssl/private/beautyclinic.key 2048
+
+sudo openssl req -new -x509 -key /etc/ssl/private/beautyclinic.key -out /etc/ssl/certs/beautyclinic.crt -days 365 -subj "/C=CN/ST=Shanghai/L=Shanghai/O=BeautyClinic/OU=IT/CN=124.221.217.56"
+
+sudo nano /etc/nginx/sites-available/beautyclinic
+
+# 粘贴配置后执行：
+
+sudo ln -s /etc/nginx/sites-available/beautyclinic /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl restart nginx

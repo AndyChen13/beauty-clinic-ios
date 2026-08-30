@@ -20,6 +20,9 @@ targets:
     resources:
       - Assets.xcassets
       - Config
+    resources:
+      - Assets.xcassets
+      - Config
     settings:
       base:
         INFOPLIST_FILE: Info.plist

@@ -148,7 +148,7 @@ struct StoreListView: View {
                 )
             }
             
-            await MainActor.run {
+            _ = await MainActor.run {
                 stores = s
                 users = u
             }
@@ -156,7 +156,7 @@ struct StoreListView: View {
             print("[StoreList] Load cancelled")
         } catch {
             print("[StoreList] Error: \(error)")
-            await MainActor.run {
+            _ = await MainActor.run {
                 errorMessage = "加载失败: \(error.localizedDescription)"
                 showError = true
             }
@@ -173,7 +173,7 @@ struct StoreListView: View {
                     let customers = try await CustomerService.shared.listCustomers(storeId: store.id)
                     
                     guard !customers.isEmpty else {
-                        await MainActor.run {
+                        _ = await MainActor.run {
                             confirmStore = store
                             confirmStoreIndex = index
                             showDeleteConfirmation = true
@@ -184,7 +184,7 @@ struct StoreListView: View {
                     let hasPending = customers.contains { ($0.remainingSessions ?? 0) > 0 }
                     let names = customers.map { $0.name }.joined(separator: "、")
                     
-                    await MainActor.run {
+                    _ = await MainActor.run {
                         if hasPending {
                             blockerTitle = "无法删除门店"
                             blockerMessage = "该门店下还有未完成交付的客户：\(names)。请先处理完客户交付后再删除门店。"
@@ -212,11 +212,11 @@ struct StoreListView: View {
     private func performDelete(store: Store, at index: Int) async {
         do {
             try await StoreService.shared.deleteStore(id: store.id)
-            await MainActor.run {
+            _ = await MainActor.run {
                 stores.remove(at: index)
             }
         } catch {
-            await MainActor.run {
+            _ = await MainActor.run {
                 errorMessage = "删除失败: \(error.localizedDescription)"
                 showError = true
             }
@@ -234,14 +234,16 @@ struct StoreListView: View {
                         phone: store.phone,
                         status: .closed,
                         managerId: store.managerId,
-                        imageUrl: store.imageUrl
+                        imageUrl: store.imageUrl,
+                        notes: store.notes,
+                        introduction: store.introduction
                     )
                 )
-                await MainActor.run {
+                _ = await MainActor.run {
                     stores[index] = updated
                 }
             } catch {
-                await MainActor.run {
+                _ = await MainActor.run {
                     errorMessage = "关闭失败: \(error.localizedDescription)"
                     showError = true
                 }
@@ -265,7 +267,7 @@ struct StoreListView: View {
                     path: "/api/deletion-requests",
                     body: request
                 )
-                await MainActor.run {
+                _ = await MainActor.run {
                     deleteReason = ""
                     storeToDelete = nil
                 }
@@ -392,6 +394,8 @@ struct StoreEditView: View {
     @State private var status = StoreStatus.active
     @State private var managerId: UUID?
     @State private var imageUrl: String?
+    @State private var notes = ""
+    @State private var introduction = ""
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -432,6 +436,16 @@ struct StoreEditView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+                
+                Section("门店简介") {
+                    TextEditor(text: $introduction)
+                        .frame(minHeight: 80)
+                }
+                
+                Section("门店备注") {
+                    TextEditor(text: $notes)
+                        .frame(minHeight: 60)
                 }
                 
                 Section("门店头像") {
@@ -520,6 +534,8 @@ struct StoreEditView: View {
                     status = store.status
                     managerId = store.managerId
                     imageUrl = store.imageUrl
+                    notes = store.notes ?? ""
+                    introduction = store.introduction ?? ""
                 }
             }
         }
@@ -556,18 +572,18 @@ struct StoreEditView: View {
                 throw NSError(domain: "Photo", code: -1, userInfo: [NSLocalizedDescriptionKey: "图片压缩失败"])
             }
             
-            await MainActor.run {
+            _ = await MainActor.run {
                 selectedImageData = compressedData
             }
             
             let fileName = "store-\(UUID().uuidString).jpg"
             let publicURL = try await TencentCOSUploadService.uploadImage(compressedData, key: fileName)
             
-            await MainActor.run {
+            _ = await MainActor.run {
                 imageUrl = publicURL
             }
         } catch {
-            await MainActor.run {
+            _ = await MainActor.run {
                 errorMessage = "上传失败: \(error.localizedDescription)"
                 showError = true
             }
@@ -616,31 +632,33 @@ struct StoreEditView: View {
                     phone: phone.isEmpty ? nil : phone,
                     status: status,
                     managerId: managerId,
-                    imageUrl: imageUrl
+                    imageUrl: imageUrl,
+                    notes: notes.isEmpty ? nil : notes,
+                    introduction: introduction.isEmpty ? nil : introduction
                 )
                 
                 switch mode {
                 case .create:
                     let created = try await StoreService.shared.createStore(storeData)
-                    await MainActor.run {
+                    _ = await MainActor.run {
                         onSave(created)
                         dismiss()
                     }
                     
                 case .edit(let existingStore):
                     let updated = try await StoreService.shared.updateStore(id: existingStore.id, data: storeData)
-                    await MainActor.run {
+                    _ = await MainActor.run {
                         onSave(updated)
                         dismiss()
                     }
                 }
             } catch {
-                await MainActor.run {
+                _ = await MainActor.run {
                     errorMessage = error.localizedDescription
                     showError = true
                 }
             }
-            await MainActor.run {
+            _ = await MainActor.run {
                 isSaving = false
             }
         }

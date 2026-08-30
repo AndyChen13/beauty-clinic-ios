@@ -20,20 +20,22 @@ struct User: Codable, Identifiable, Hashable, Sendable {
         case updatedAt = "updated_at"
     }
     
-    var isAdmin: Bool { role == .admin }
-    var isManager: Bool { role == .manager }
+    var isSuperAdmin: Bool { role == .superAdmin }
+    var isAdmin: Bool { role == .admin || role == .superAdmin }
 }
 
 enum UserRole: String, Codable, Sendable, CaseIterable {
+    case superAdmin = "super_admin"
     case admin = "admin"
-    case manager = "manager"
+    case storeUser = "store_user"
     case staff = "staff"
     
     var displayName: String {
         switch self {
-        case .admin: return "超级管理员"
-        case .manager: return "门店经理"
-        case .staff: return "普通员工"
+        case .superAdmin: return "超级管理员"
+        case .admin: return "管理员"
+        case .storeUser: return "门店用户"
+        case .staff: return "员工"
         }
     }
 }

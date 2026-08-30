@@ -2,14 +2,22 @@
 import SwiftUI
 
 struct CustomerDetailView: View {
-    let customer: Customer
+    @EnvironmentObject var userState: UserState
+    @State var customer: Customer
     let stores: [Store]
     @State private var transactions: [Transaction] = []
-    @State private var photos: [CustomerPhoto] = []
+    
+    init(customer: Customer, stores: [Store]) {
+        _customer = State(initialValue: customer)
+        self.stores = stores
+    }
     @State private var serviceRecords: [ServiceRecord] = []
     @State private var isLoading = false
     @State private var isEditing = false
     @State private var showingServiceSheet = false
+    @State private var showingRefundSheet = false
+    @State private var showingPaymentSheet = false
+    @State private var selectedTransactionForPayment: Transaction?
     @State private var selectedRecord: ServiceRecord?
     
     private var storeName: String {
@@ -18,6 +26,51 @@ struct CustomerDetailView: View {
             return store.name
         }
         return "未分配门店"
+    }
+    
+    // MARK: - 成交统计（按交易记录实时聚合，额外收款不重复计算）
+    private var nonPaymentTransactions: [Transaction] {
+        transactions.filter { $0.status != .paid }
+    }
+    
+    private var paymentTransactions: [Transaction] {
+        transactions.filter { $0.status == .paid }
+    }
+    
+    private var statsTotalAmount: Double {
+        // 成交金额 = 所有成交/退款 amount 之和 + 后续额外收款/服务记录收款（status=paid）的 amountReceived
+        let dealTotal = nonPaymentTransactions.reduce(0) { $0 + $1.amount }
+        let extraPayments = paymentTransactions.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+        let total = dealTotal + extraPayments
+        return total > 0 ? total : (customer.firstTransactionAmount ?? 0)
+    }
+    
+    private var statsReceived: Double {
+        // 已收款 = 成交记录收款 + 服务记录额外收款（paid 且 amount≠0） + 退款（负值）
+        let dealReceived = nonPaymentTransactions.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+        let extraPayments = paymentTransactions
+            .filter { $0.amount != 0 }
+            .reduce(0) { $0 + ($1.amountReceived ?? 0) }
+        let refundReceived = transactions
+            .filter { $0.status == .refunded }
+            .reduce(0) { $0 + ($1.amountReceived ?? 0) }
+        let total = dealReceived + extraPayments + refundReceived
+        return transactions.isEmpty ? (customer.amountReceived ?? 0) : total
+    }
+    
+    private var statsOutstanding: Double {
+        // 待收款从非 paid 成交聚合
+        nonPaymentTransactions.reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
+    }
+    
+    private var statsTotalSessions: Int {
+        let txTotal = nonPaymentTransactions.reduce(0) { $0 + $1.totalSessions }
+        return txTotal > 0 ? txTotal : (customer.remainingSessions ?? 0)
+    }
+    
+    private var statsRemaining: Int {
+        let txRemaining = nonPaymentTransactions.reduce(0) { $0 + $1.remainingSessions }
+        return txRemaining > 0 ? txRemaining : (customer.remainingSessions ?? 0)
     }
     
     var body: some View {
@@ -35,7 +88,6 @@ struct CustomerDetailView: View {
                 }
                 
                 customerStatsCard
-                photosSection
                 serviceRecordsSection
                 transactionsSection
             }
@@ -56,22 +108,71 @@ struct CustomerDetailView: View {
             }
         }
         .sheet(isPresented: $isEditing) {
-            CustomerEditView(mode: .edit(customer), stores: stores) { _ in }
+            CustomerEditView(mode: .edit(customer), stores: stores) { updated in
+                customer = updated
+                Task {
+                    await loadTransactions()
+                    await loadCustomer()
+                    await loadServiceRecords()
+                }
+            }
         }
         .sheet(isPresented: $showingServiceSheet) {
             ServiceRecordEditView(
+                record: nil,
                 customer: customer,
                 transactions: transactions
             ) { _ in
                 Task {
                     await loadServiceRecords()
                     await loadTransactions()
+                    await loadCustomer()
                 }
             }
         }
+        .sheet(isPresented: $showingRefundSheet) {
+            AddRefundSheet(
+                customer: customer,
+                transactions: transactions,
+                onSave: {
+                    Task {
+                        await loadTransactions()
+                        await loadCustomer()
+                    }
+                },
+                onCancel: { showingRefundSheet = false }
+            )
+        }
+        .sheet(item: $selectedTransactionForPayment) { transaction in
+            AddPaymentSheet(
+                customer: customer,
+                transactions: transactions,
+                transaction: transaction,
+                onSave: {
+                    Task {
+                        await loadTransactions()
+                        await loadCustomer()
+                    }
+                },
+                onCancel: { selectedTransactionForPayment = nil }
+            )
+        }
+        .sheet(isPresented: $showingPaymentSheet) {
+            AddPaymentSheet(
+                customer: customer,
+                transactions: transactions,
+                transaction: nil,
+                onSave: {
+                    Task {
+                        await loadTransactions()
+                        await loadCustomer()
+                    }
+                },
+                onCancel: { showingPaymentSheet = false }
+            )
+        }
         .task {
             await loadTransactions()
-            await loadPhotos()
             await loadServiceRecords()
         }
     }
@@ -90,8 +191,19 @@ struct CustomerDetailView: View {
                 AvatarView(name: customer.name, size: 72)
             }
             
-            Text(customer.name)
-                .font(.title2.weight(.bold))
+            HStack(spacing: 8) {
+                Text(customer.name)
+                    .font(.title2.weight(.bold))
+                ForEach(customer.branchTags, id: \.self) { tag in
+                    Text(tag.displayName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(tag.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(tag.color.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+            }
             Text(customer.phone)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -125,6 +237,10 @@ struct CustomerDetailView: View {
                 Divider()
                 InfoRow(label: "出生日期", value: birthdate)
             }
+            if let firstTransactionDate = customer.firstTransactionDate {
+                Divider()
+                InfoRow(label: "首次成交", value: firstTransactionDate.formatted(date: .abbreviated, time: .omitted))
+            }
             if let lastVisit = customer.lastVisit {
                 Divider()
                 InfoRow(label: "最近到访", value: lastVisit.formatted())
@@ -137,7 +253,7 @@ struct CustomerDetailView: View {
     
     private func medicalHistoryCard(history: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("医疗记录")
+            Text("身体情况")
                 .font(.headline)
             Text(history)
                 .font(.subheadline)
@@ -150,53 +266,13 @@ struct CustomerDetailView: View {
     }
     
     private func preferencesCard(prefs: [String: String]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let filtered = prefs.filter { $0.key != "branch" }
+        return VStack(alignment: .leading, spacing: 12) {
             Text("客户偏好")
                 .font(.headline)
-            ForEach(Array(prefs.keys.sorted()), id: \.self) { key in
-                if let value = prefs[key] {
+            ForEach(Array(filtered.keys.sorted()), id: \.self) { key in
+                if let value = filtered[key] {
                     InfoRow(label: key, value: value)
-                }
-            }
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-    
-    private var photosSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("照片记录")
-                    .font(.headline)
-                Spacer()
-                if isLoading {
-                    ProgressView().scaleEffect(0.8)
-                }
-            }
-            
-            if photos.isEmpty && !isLoading {
-                Text("暂无照片")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 20)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(photos) { photo in
-                            if let url = URL(string: photo.photoUrl) {
-                                AsyncImage(url: url) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(UIColor.secondarySystemBackground))
-                                }
-                                .frame(width: 100, height: 100)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -208,9 +284,19 @@ struct CustomerDetailView: View {
     private var transactionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("消费记录")
+                Text("成交历史")
                     .font(.headline)
                 Spacer()
+                Button("新增退款") {
+                    showingRefundSheet = true
+                }
+                .font(.caption.weight(.medium))
+                .foregroundColor(.red)
+                Button("新增收款") {
+                    showingPaymentSheet = true
+                }
+                .font(.caption.weight(.medium))
+                .foregroundColor(.green)
                 if isLoading {
                     ProgressView().scaleEffect(0.8)
                 }
@@ -224,7 +310,9 @@ struct CustomerDetailView: View {
                     .padding(.vertical, 20)
             } else {
                 ForEach(transactions) { transaction in
-                    TransactionMiniRow(transaction: transaction)
+                    TransactionMiniRow(transaction: transaction) {
+                        selectedTransactionForPayment = transaction
+                    }
                 }
             }
         }
@@ -235,65 +323,74 @@ struct CustomerDetailView: View {
     
     private var customerStatsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("客户状态")
+            Text("成交历史")
                 .font(.headline)
             
-            HStack(spacing: 20) {
-                if let remaining = customer.remainingSessions {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 20) {
                     VStack(spacing: 4) {
-                        Text("\(remaining)")
+                        Text("\(statsRemaining)")
                             .font(.title3.weight(.bold))
-                            .foregroundColor(remaining > 0 ? .blue : .gray)
+                            .foregroundColor(statsRemaining > 0 ? .blue : .gray)
                         Text("剩余次数")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                }
-                
-                if let outstanding = customer.outstandingAmount, outstanding > 0 {
+                    
                     VStack(spacing: 4) {
-                        Text("¥\(String(format: "%.0f", outstanding))")
-                            .font(.title3.weight(.bold))
-                            .foregroundColor(.orange)
-                        Text("待收款项")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                if let firstTxn = customer.firstTransactionAmount, firstTxn > 0 {
-                    VStack(spacing: 4) {
-                        Text("¥\(String(format: "%.0f", firstTxn))")
+                        Text("\(statsTotalSessions)")
                             .font(.title3.weight(.bold))
                             .foregroundColor(.blue)
-                        Text("首次成交")
+                        Text("总服务次数")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                }
-                
-                if let received = customer.amountReceived, received > 0 {
-                    VStack(spacing: 4) {
-                        Text("¥\(String(format: "%.0f", received))")
-                            .font(.title3.weight(.bold))
-                            .foregroundColor(.green)
-                        Text("已收款")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    
+                    if statsOutstanding > 0 {
+                        VStack(spacing: 4) {
+                            Text("¥\(String(format: "%.0f", statsOutstanding))")
+                                .font(.title3.weight(.bold))
+                                .foregroundColor(.orange)
+                            Text("待收款项")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                }
-                
-                if !serviceRecords.isEmpty {
-                    VStack(spacing: 4) {
-                        Text("\(serviceRecords.count)")
-                            .font(.title3.weight(.bold))
-                        Text("服务次数")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    
+                    if statsTotalAmount > 0 {
+                        VStack(spacing: 4) {
+                            Text("¥\(String(format: "%.0f", statsTotalAmount))")
+                                .font(.title3.weight(.bold))
+                                .foregroundColor(.blue)
+                            Text("成交金额")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    
+                    if statsReceived > 0 {
+                        VStack(spacing: 4) {
+                            Text("¥\(String(format: "%.0f", statsReceived))")
+                                .font(.title3.weight(.bold))
+                                .foregroundColor(.green)
+                            Text("已收款")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    if !serviceRecords.isEmpty {
+                        VStack(spacing: 4) {
+                            Text("\(serviceRecords.count)")
+                                .font(.title3.weight(.bold))
+                            Text("服务次数")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
                 }
-                
-                Spacer()
             }
         }
         .padding()
@@ -341,47 +438,42 @@ struct CustomerDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .sheet(item: $selectedRecord) { record in
             NavigationStack {
-                ServiceRecordDetailView(record: record)
+                ServiceRecordDetailView(
+                    record: record,
+                    customer: customer,
+                    transactions: transactions,
+                    onDelete: {
+                        Task {
+                            await loadCustomer()
+                            await loadServiceRecords()
+                        }
+                    },
+                    onSave: {
+                        Task {
+                            await loadCustomer()
+                            await loadServiceRecords()
+                            await loadTransactions()
+                        }
+                    }
+                )
             }
         }
     }
     
     private func loadTransactions() async {
         do {
-            let result: [Transaction] = try await APIClient.shared.get(path: "/api/transactions?customerId=\(customer.id.uuidString)")
-            transactions = result
+            transactions = try await TransactionService.shared.listTransactions(customerId: customer.id.uuidString)
         } catch {
             print("Error loading transactions: \(error)")
         }
     }
     
-    private func loadPhotos() async {
+    private func loadCustomer() async {
         do {
-            struct PhotoResponse: Codable {
-                let id: String
-                let customerId: String
-                let photoUrl: String
-                let photoType: String
-                let notes: String?
-                let uploadedBy: String?
-                let createdAt: String?
-            }
-            let result: [PhotoResponse] = try await APIClient.shared.get(
-                path: "/api/customers/\(customer.id.uuidString)/photos"
-            )
-            photos = result.map { r in
-                CustomerPhoto(
-                    id: UUID(uuidString: r.id)!,
-                    customerId: UUID(uuidString: r.customerId)!,
-                    photoUrl: r.photoUrl,
-                    photoType: PhotoType(rawValue: r.photoType) ?? .progress,
-                    notes: r.notes,
-                    uploadedBy: r.uploadedBy.flatMap { UUID(uuidString: $0) },
-                    createdAt: nil
-                )
-            }
+            let updated = try await CustomerService.shared.getCustomer(id: customer.id)
+            customer = updated
         } catch {
-            print("Error loading photos: \(error)")
+            print("Error loading customer: \(error)")
         }
     }
     
@@ -396,6 +488,7 @@ struct CustomerDetailView: View {
                 let operatorName: String?
                 let operatorPhone: String?
                 let bodyPart: String?
+                let serviceDetails: String?
                 let photos: [String]?
                 let customerFeedback: String?
                 let extraPayment: Double
@@ -418,6 +511,7 @@ struct CustomerDetailView: View {
                     operatorName: r.operatorName,
                     operatorPhone: r.operatorPhone,
                     bodyPart: r.bodyPart,
+                    serviceDetails: r.serviceDetails,
                     photos: r.photos,
                     customerFeedback: r.customerFeedback,
                     extraPayment: r.extraPayment,
@@ -431,54 +525,327 @@ struct CustomerDetailView: View {
             print("Error loading service records: \(error)")
         }
     }
-        do {
-            let result: [Transaction] = try await supabase
-                .from("transactions")
-                .select("""
-                    *,
-                    packages(name),
-                    stores(name)
-                """)
-                .eq("customer_id", value: customer.id)
-                .order("transaction_date", ascending: false)
-                .limit(10)
-                .execute()
-                .value
-            transactions = result
-        } catch {
-            print("Error loading transactions: \(error)")
-        }
+}
+
+struct AddRefundSheet: View {
+    let customer: Customer
+    let transactions: [Transaction]
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    
+    @EnvironmentObject var userState: UserState
+    @State private var selectedTransactionId: UUID?
+    @State private var refundAmount: String = ""
+    @State private var refundSessions: String = ""
+    @State private var notes: String = ""
+    @State private var isSaving = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    private var selectedTransaction: Transaction? {
+        transactions.first { $0.id == selectedTransactionId }
     }
     
-    private func loadPhotos() async {
-        do {
-            let result: [CustomerPhoto] = try await supabase
-                .from("customer_photos")
-                .select()
-                .eq("customer_id", value: customer.id)
-                .order("created_at", ascending: false)
-                .execute()
-                .value
-            photos = result
-        } catch {
-            print("Error loading photos: \(error)")
-        }
+    private var refundAmountValue: Double {
+        Double(refundAmount) ?? 0
     }
     
-    private func loadServiceRecords() async {
-        do {
-            let result: [ServiceRecord] = try await supabase
-                .from("service_records")
-                .select()
-                .eq("customer_id", value: customer.id)
-                .order("service_date", ascending: false)
-                .execute()
-                .value
-            await MainActor.run {
-                serviceRecords = result
+    private var refundSessionsValue: Int {
+        Int(refundSessions) ?? 0
+    }
+    
+    private var canSave: Bool {
+        (refundAmountValue > 0 || refundSessionsValue > 0) && selectedTransaction != nil
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("选择退款对应成交") {
+                    if transactions.isEmpty {
+                        Text("没有可退款的成交记录")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("成交记录", selection: $selectedTransactionId) {
+                            ForEach(transactions.filter { $0.status != .refunded && $0.status != .paid }) { tx in
+                                Text("\(tx.packageName ?? "未知套餐") · ¥\(String(format: "%.0f", tx.amount)) · 剩余\(tx.remainingSessions)次")
+                                    .tag(tx.id as UUID?)
+                            }
+                        }
+                    }
+                }
+                
+                Section("退款信息") {
+                    TextField("退款金额 (¥)", text: $refundAmount)
+                        .keyboardType(.decimalPad)
+                    TextField("退还服务次数", text: $refundSessions)
+                        .keyboardType(.numberPad)
+                    TextField("退款备注（选填）", text: $notes)
+                }
+                
+                Section {
+                    Button {
+                        saveRefund()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isSaving {
+                                ProgressView()
+                            } else {
+                                Text("确认退款")
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(!canSave || isSaving)
+                    .foregroundColor(.red)
+                }
             }
-        } catch {
-            print("Error loading service records: \(error)")
+            .navigationTitle("新增退款")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") { onCancel() }
+                }
+            }
+            .alert("退款失败", isPresented: $showError) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+            .onAppear {
+                if selectedTransactionId == nil {
+                    selectedTransactionId = transactions.first { $0.status != .refunded && $0.status != .paid }?.id
+                }
+            }
+        }
+    }
+    
+    private func saveRefund() {
+        guard refundAmountValue > 0 || refundSessionsValue > 0 else { return }
+        guard let storeId = customer.associatedStoreId ?? userState.storeId else {
+            errorMessage = "客户未分配门店"
+            showError = true
+            return
+        }
+        guard let targetTx = selectedTransaction else {
+            errorMessage = "请选择要退款的成交记录"
+            showError = true
+            return
+        }
+        
+        isSaving = true
+        Task {
+            do {
+                let refund = TransactionInsert(
+                    customerId: customer.id,
+                    storeId: storeId,
+                    packageId: targetTx.packageId,
+                    staffUserId: userState.currentUser?.id,
+                    amount: -refundAmountValue,
+                    amountReceived: -refundAmountValue,
+                    outstandingAmount: 0,
+                    totalSessions: -refundSessionsValue,
+                    transactionDate: Date(),
+                    estimatedCompletionDate: nil,
+                    status: .refunded,
+                    notes: notes.isEmpty ? "退款 · \(targetTx.packageName ?? "")" : "退款 · \(targetTx.packageName ?? "")：\(notes)"
+                )
+                _ = try await TransactionService.shared.createTransaction(refund)
+                
+                // 同步刷新客户档案财务字段
+                if let refreshed = try? await CustomerService.shared.getCustomer(id: customer.id) {
+                    let update = CustomerInsert(
+                        phone: refreshed.phone,
+                        name: refreshed.name,
+                        gender: refreshed.gender,
+                        birthdate: refreshed.birthdate,
+                        medicalHistory: refreshed.medicalHistory,
+                        preferences: refreshed.preferences,
+                        associatedStoreId: refreshed.associatedStoreId,
+                        photoUrl: refreshed.photoUrl,
+                        firstTransactionAmount: max(0, (refreshed.firstTransactionAmount ?? 0) - refundAmountValue),
+                        amountReceived: max(0, (refreshed.amountReceived ?? 0) - refundAmountValue),
+                        outstandingAmount: max(0, (refreshed.outstandingAmount ?? 0)),
+                        conversionProbability: refreshed.conversionProbability,
+                        remainingSessions: refreshed.remainingSessions
+                    )
+                    _ = try await CustomerService.shared.updateCustomer(id: customer.id, data: update)
+                }
+                
+                isSaving = false
+                onCancel()
+                onSave()
+            } catch {
+                isSaving = false
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        }
+    }
+}
+
+struct AddPaymentSheet: View {
+    let customer: Customer
+    let transactions: [Transaction]
+    let transaction: Transaction?
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    
+    @EnvironmentObject var userState: UserState
+    @State private var selectedTransactionId: UUID?
+    @State private var paymentAmount: String = ""
+    @State private var notes: String = ""
+    @State private var isSaving = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    
+    private var selectedTransaction: Transaction? {
+        if let transaction = transaction { return transaction }
+        return transactions.first { $0.id == selectedTransactionId }
+    }
+    
+    private var paymentAmountValue: Double {
+        Double(paymentAmount) ?? 0
+    }
+    
+    private var canSave: Bool {
+        paymentAmountValue > 0 && selectedTransaction != nil
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("选择收款对应成交") {
+                    if let transaction = transaction {
+                        Text("\(transaction.packageName ?? "未知套餐") · 待收 ¥\(String(format: "%.0f", transaction.outstandingAmount ?? 0))")
+                    } else if transactions.isEmpty {
+                        Text("没有可收款的成交记录")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("成交记录", selection: $selectedTransactionId) {
+                            ForEach(transactions.filter { ($0.outstandingAmount ?? 0) > 0 }) { tx in
+                                Text("\(tx.packageName ?? "未知套餐") · 待收 ¥\(String(format: "%.0f", tx.outstandingAmount ?? 0))")
+                                    .tag(tx.id as UUID?)
+                            }
+                        }
+                    }
+                }
+                
+                Section("收款信息") {
+                    TextField("收款金额 (¥)", text: $paymentAmount)
+                        .keyboardType(.decimalPad)
+                    TextField("收款备注（选填）", text: $notes)
+                }
+                
+                Section {
+                    Button {
+                        savePayment()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isSaving {
+                                ProgressView()
+                            } else {
+                                Text("确认收款")
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(!canSave || isSaving)
+                    .foregroundColor(.green)
+                }
+            }
+            .navigationTitle("新增收款")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") { onCancel() }
+                }
+            }
+            .alert("收款失败", isPresented: $showError) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+            .onAppear {
+                if let transaction = transaction {
+                    selectedTransactionId = transaction.id
+                } else if selectedTransactionId == nil {
+                    selectedTransactionId = transactions.first { ($0.outstandingAmount ?? 0) > 0 }?.id
+                }
+            }
+        }
+    }
+    
+    private func savePayment() {
+        guard paymentAmountValue > 0 else { return }
+        guard let storeId = customer.associatedStoreId ?? userState.storeId else {
+            errorMessage = "客户未分配门店"
+            showError = true
+            return
+        }
+        guard let targetTx = selectedTransaction else {
+            errorMessage = "请选择要收款的成交记录"
+            showError = true
+            return
+        }
+        
+        isSaving = true
+        Task {
+            do {
+                let payment = TransactionInsert(
+                    customerId: customer.id,
+                    storeId: storeId,
+                    packageId: targetTx.packageId,
+                    staffUserId: userState.currentUser?.id,
+                    amount: 0,
+                    amountReceived: paymentAmountValue,
+                    outstandingAmount: 0,
+                    totalSessions: 0,
+                    transactionDate: Date(),
+                    estimatedCompletionDate: nil,
+                    status: .paid,
+                    notes: notes.isEmpty ? "收款 · \(targetTx.packageName ?? "")" : "收款 · \(targetTx.packageName ?? "")：\(notes)"
+                )
+                _ = try await TransactionService.shared.createTransaction(payment)
+                
+                // 同步减少原成交的待收
+                let newOutstanding = max(0, (targetTx.outstandingAmount ?? 0) - paymentAmountValue)
+                let newReceived = (targetTx.amountReceived ?? 0) + paymentAmountValue
+                _ = try? await TransactionService.shared.updateTransaction(
+                    id: targetTx.id.uuidString,
+                    data: TransactionUpdate(amountReceived: newReceived, outstandingAmount: newOutstanding)
+                )
+                
+                // 同步刷新客户档案财务字段
+                if let refreshed = try? await CustomerService.shared.getCustomer(id: customer.id) {
+                    let update = CustomerInsert(
+                        phone: refreshed.phone,
+                        name: refreshed.name,
+                        gender: refreshed.gender,
+                        birthdate: refreshed.birthdate,
+                        medicalHistory: refreshed.medicalHistory,
+                        preferences: refreshed.preferences,
+                        associatedStoreId: refreshed.associatedStoreId,
+                        photoUrl: refreshed.photoUrl,
+                        firstTransactionAmount: refreshed.firstTransactionAmount,
+                        amountReceived: (refreshed.amountReceived ?? 0) + paymentAmountValue,
+                        outstandingAmount: max(0, (refreshed.outstandingAmount ?? 0) - paymentAmountValue),
+                        conversionProbability: refreshed.conversionProbability,
+                        remainingSessions: refreshed.remainingSessions
+                    )
+                    _ = try await CustomerService.shared.updateCustomer(id: customer.id, data: update)
+                }
+                
+                isSaving = false
+                onCancel()
+                onSave()
+            } catch {
+                isSaving = false
+                errorMessage = error.localizedDescription
+                showError = true
+            }
         }
     }
 }

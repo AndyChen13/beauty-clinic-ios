@@ -37,7 +37,7 @@ class UserState: ObservableObject {
 }
 
 @main
-struct BeautyClinicApp: App {
+struct BeautyManagerApp: App {
     @StateObject private var userState = UserState()
     
     var body: some Scene {

@@ -40,7 +40,7 @@ enum PackageCategory: String, Codable, Sendable, CaseIterable {
         switch self {
         case .skin: return "皮肤管理"
         case .body: return "身体护理"
-        case .face: return "面部美容"
+        case .face: return "面部护理"
         case .hair: return "头发护理"
         case .other: return "其他"
         case .training: return "培训PPT"
@@ -81,6 +81,8 @@ struct ServicePackageInsert: Codable, Sendable {
 struct TrainingMaterial: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     let packageId: UUID?
+    let category: TrainingMaterialCategory
+    let storeId: UUID?
     let title: String
     let version: String
     let fileUrl: String
@@ -94,6 +96,8 @@ struct TrainingMaterial: Codable, Identifiable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id
         case packageId = "package_id"
+        case category
+        case storeId = "store_id"
         case title, version
         case fileUrl = "file_url"
         case fileType = "file_type"
@@ -102,6 +106,50 @@ struct TrainingMaterial: Codable, Identifiable, Hashable, Sendable {
         case isActive = "is_active"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+}
+
+enum TrainingMaterialCategory: String, Codable, Sendable, CaseIterable {
+    case technical = "technical"
+    case marketing = "marketing"
+    case general = "general"
+    case storeSpecific = "store_specific"
+    
+    var displayName: String {
+        switch self {
+        case .technical: return "技术培训"
+        case .marketing: return "市场培训"
+        case .general: return "通用培训"
+        case .storeSpecific: return "指定店铺培训"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .technical: return .blue
+        case .marketing: return .pink
+        case .general: return .orange
+        case .storeSpecific: return .purple
+        }
+    }
+}
+
+struct TrainingMaterialInsert: Codable, Sendable {
+    let title: String
+    let version: String
+    let fileUrl: String
+    let fileType: String
+    let category: TrainingMaterialCategory
+    let storeId: UUID?
+    let description: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case title, version
+        case fileUrl = "file_url"
+        case fileType = "file_type"
+        case category
+        case storeId = "store_id"
+        case description
     }
 }
 
@@ -128,6 +176,16 @@ enum FileType: String, Codable, Sendable, CaseIterable {
         case .ppt, .pptx: return "play.rectangle"
         case .video: return "video.fill"
         case .image: return "photo"
+        }
+    }
+    
+    var mimeType: String {
+        switch self {
+        case .pdf: return "application/pdf"
+        case .ppt: return "application/vnd.ms-powerpoint"
+        case .pptx: return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        case .video: return "video/mp4"
+        case .image: return "image/jpeg"
         }
     }
 }

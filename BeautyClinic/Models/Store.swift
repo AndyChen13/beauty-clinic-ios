@@ -10,11 +10,39 @@ struct Store: Codable, Identifiable, Hashable, Sendable {
     let status: StoreStatus
     let managerId: UUID?
     let imageUrl: String?
+    let notes: String?
+    let introduction: String?
     let createdAt: Date?
     let updatedAt: Date?
     
+    init(
+        id: UUID,
+        name: String,
+        address: String? = nil,
+        phone: String? = nil,
+        status: StoreStatus,
+        managerId: UUID? = nil,
+        imageUrl: String? = nil,
+        notes: String? = nil,
+        introduction: String? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.address = address
+        self.phone = phone
+        self.status = status
+        self.managerId = managerId
+        self.imageUrl = imageUrl
+        self.notes = notes
+        self.introduction = introduction
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+    
     enum CodingKeys: String, CodingKey {
-        case id, name, address, phone, status
+        case id, name, address, phone, status, notes, introduction
         case managerId = "manager_id"
         case imageUrl = "image_url"
         case createdAt = "created_at"
@@ -51,9 +79,31 @@ struct StoreInsert: Codable, Sendable {
     let status: StoreStatus
     let managerId: UUID?
     let imageUrl: String?
+    let notes: String?
+    let introduction: String?
+    
+    init(
+        name: String,
+        address: String? = nil,
+        phone: String? = nil,
+        status: StoreStatus,
+        managerId: UUID? = nil,
+        imageUrl: String? = nil,
+        notes: String? = nil,
+        introduction: String? = nil
+    ) {
+        self.name = name
+        self.address = address
+        self.phone = phone
+        self.status = status
+        self.managerId = managerId
+        self.imageUrl = imageUrl
+        self.notes = notes
+        self.introduction = introduction
+    }
     
     enum CodingKeys: String, CodingKey {
-        case name, address, phone, status
+        case name, address, phone, status, notes, introduction
         case managerId = "manager_id"
         case imageUrl = "image_url"
     }

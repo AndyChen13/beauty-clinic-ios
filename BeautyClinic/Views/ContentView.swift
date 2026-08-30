@@ -82,7 +82,7 @@ struct SplashScreen: View {
                         .font(.system(size: 40))
                         .foregroundColor(.accentColor)
                 )
-            Text("Beauty Clinic")
+            Text("Beauty Manager")
                 .font(.largeTitle.weight(.bold))
             Text("内部管理系统")
                 .font(.subheadline)

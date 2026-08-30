@@ -79,12 +79,7 @@ struct AdminApprovalView: View {
         defer { isLoading = false }
         
         do {
-            let result: [DeletionRequest] = try await supabase
-                .from("deletion_requests")
-                .select()
-                .order("created_at", ascending: false)
-                .execute()
-                .value
+            let result: [DeletionRequest] = try await APIClient.shared.get(path: "/api/deletion-requests")
             requests = result
         } catch {
             print("Error loading requests: \(error)")
@@ -94,20 +89,13 @@ struct AdminApprovalView: View {
     private func approveRequest(_ request: DeletionRequest) {
         Task {
             do {
-                // 1. Update request status
-                _ = try await supabase
-                    .from("deletion_requests")
-                    .update([
-                        "status": "approved",
-                        "admin_notes": adminNote,
-                        "processed_by": userState.currentUser?.id.uuidString ?? "",
-                        "processed_at": ISO8601DateFormatter().string(from: Date())
-                    ])
-                    .eq("id", value: request.id)
-                    .execute()
-                
-                // 2. Actually delete the target
-                try await deleteTarget(request: request)
+                struct ApproveBody: Codable {
+                    let adminNotes: String?
+                }
+                let _: EmptyResponse = try await APIClient.shared.put(
+                    path: "/api/deletion-requests/\(request.id.uuidString)/approve",
+                    body: ApproveBody(adminNotes: adminNote.isEmpty ? nil : adminNote)
+                )
                 
                 adminNote = ""
                 await loadRequests()
@@ -121,16 +109,13 @@ struct AdminApprovalView: View {
     private func rejectRequest(_ request: DeletionRequest) {
         Task {
             do {
-                _ = try await supabase
-                    .from("deletion_requests")
-                    .update([
-                        "status": "rejected",
-                        "admin_notes": adminNote,
-                        "processed_by": userState.currentUser?.id.uuidString ?? "",
-                        "processed_at": ISO8601DateFormatter().string(from: Date())
-                    ])
-                    .eq("id", value: request.id)
-                    .execute()
+                struct RejectBody: Codable {
+                    let adminNotes: String?
+                }
+                let _: EmptyResponse = try await APIClient.shared.put(
+                    path: "/api/deletion-requests/\(request.id.uuidString)/reject",
+                    body: RejectBody(adminNotes: adminNote.isEmpty ? nil : adminNote)
+                )
                 
                 adminNote = ""
                 await loadRequests()
@@ -140,22 +125,9 @@ struct AdminApprovalView: View {
             }
         }
     }
-    
-    private func deleteTarget(request: DeletionRequest) async throws {
-        switch request.targetType {
-        case "customer":
-            _ = try await supabase.from("customers").delete().eq("id", value: request.targetId).execute()
-        case "store":
-            _ = try await supabase.from("stores").delete().eq("id", value: request.targetId).execute()
-        case "package":
-            _ = try await supabase.from("packages").delete().eq("id", value: request.targetId).execute()
-        case "user":
-            _ = try await supabase.from("users").delete().eq("id", value: request.targetId).execute()
-        default:
-            break
-        }
-    }
 }
+
+struct EmptyResponse: Codable {}
 
 struct RequestRow: View {
     let request: DeletionRequest

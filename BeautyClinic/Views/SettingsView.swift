@@ -95,7 +95,7 @@ struct SettingsView: View {
             .alert("确认退出", isPresented: $showLogoutAlert) {
                 Button("取消", role: .cancel) { }
                 Button("退出", role: .destructive) {
-                    Task { await logout() }
+                    logout()
                 }
             } message: {
                 Text("确定要退出当前账号吗？")
@@ -111,8 +111,8 @@ struct SettingsView: View {
         userState.currentUser?.role.displayName ?? "员工"
     }
     
-    private func logout() async {
-        await userState.signOut()
+    private func logout() {
+        userState.signOut()
     }
 }
 
@@ -131,8 +131,9 @@ struct RoleBadge: View {
     
     private var roleColor: Color {
         switch role {
+        case .superAdmin: return .yellow
         case .admin: return .red
-        case .manager: return .blue
+        case .storeUser: return .blue
         case .staff: return .green
         }
     }
@@ -151,20 +152,20 @@ struct AboutView: View {
                                 .font(.system(size: 36))
                                 .foregroundColor(.accentColor)
                         )
-                    Text("Beauty Clinic")
+                    Text("Beauty Manager")
                         .font(.title2.weight(.bold))
-                    Text("医美内部管理系统")
+                    Text("内部管理系统")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 20)
                 
                 VStack(alignment: .leading, spacing: 16) {
-                    InfoBlock(title: "功能介绍", content: "本应用为医美服务公司内部管理工具，提供客户管理、套餐管理、门店管理和成交记录等功能。帮助门店高效管理日常运营。")
+                    InfoBlock(title: "功能介绍", content: "本应用为服务公司内部管理工具，提供客户管理、套餐管理、门店管理和成交记录等功能。帮助门店高效管理日常运营。")
                     
                     InfoBlock(title: "权限说明", content: "• 超级管理员：管理所有数据和用户\n• 门店经理：管理本门店数据\n• 普通员工：查看和录入本门店数据\n\n删除操作需提交审批，由管理员审核后执行。")
                     
-                    InfoBlock(title: "技术栈", content: "• SwiftUI 用户界面\n• Supabase 后端服务\n• PostgreSQL 数据库\n• iOS 17+")
+                    InfoBlock(title: "技术栈", content: "• SwiftUI 用户界面\n• 自建 REST API 后端\n• PostgreSQL 数据库\n• 腾讯云 COS 存储\n• iOS 17+")
                 }
                 .padding(.horizontal)
             }

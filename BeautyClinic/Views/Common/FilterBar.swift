@@ -1,5 +1,5 @@
 //  Views/Common/FilterBar.swift
-//  BeautyClinic
+//  BeautyManager
 //
 
 import SwiftUI

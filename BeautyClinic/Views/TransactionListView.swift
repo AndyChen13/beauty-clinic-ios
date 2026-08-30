@@ -13,6 +13,12 @@ struct TransactionListView: View {
     @State private var selectedTransaction: Transaction? = nil
     @State private var showingDeliverySheet = false
     
+    let filterCustomer: Customer?
+    
+    init(filterCustomer: Customer? = nil) {
+        self.filterCustomer = filterCustomer
+    }
+    
     var filteredTransactions: [Transaction] {
         guard let status = selectedStatus else { return transactions }
         return transactions.filter { $0.status == status }
@@ -70,7 +76,7 @@ struct TransactionListView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("成交记录")
+            .navigationTitle(filterCustomer?.name ?? "成交记录")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingRecordSheet = true }) {
@@ -81,7 +87,8 @@ struct TransactionListView: View {
             .sheet(isPresented: $showingRecordSheet) {
                 TransactionRecordView(
                     customers: customers,
-                    packages: packages
+                    packages: packages,
+                    preselectedCustomerId: filterCustomer?.id
                 ) { newTransaction in
                     transactions.insert(newTransaction, at: 0)
                 }
@@ -110,42 +117,19 @@ struct TransactionListView: View {
         defer { isLoading = false }
         
         do {
-            async let transactionsTask: [Transaction] = supabase
-                .from("transactions")
-                .select("""
-                    *,
-                    customers(name),
-                    packages(name),
-                    stores(name)
-                """)
-                .order("transaction_date", ascending: false)
-                .execute()
-                .value
+            let customerId = filterCustomer?.id.uuidString
+            async let transactionsTask: [Transaction] = customerId != nil
+                ? TransactionService.shared.listTransactions(customerId: customerId!)
+                : TransactionService.shared.listTransactions()
+            async let deliveriesTask = DeliveryService.shared.listDeliveries()
+            async let customersTask = CustomerService.shared.listCustomers()
+            async let packagesTask = PackageService.shared.listPackages()
             
-            async let deliveriesTask: [Delivery] = supabase
-                .from("deliveries")
-                .select()
-                .order("delivery_date", ascending: false)
-                .execute()
-                .value
-            
-            async let customersTask: [Customer] = supabase
-                .from("customers")
-                .select()
-                .execute()
-                .value
-            
-            async let packagesTask: [ServicePackage] = supabase
-                .from("packages")
-                .select()
-                .execute()
-                .value
-            
-            let (t, d, c, p) = try await (transactionsTask, deliveriesTask, customersTask, packagesTask)
+            let (t, d, c, pkgResult) = try await (transactionsTask, deliveriesTask, customersTask, packagesTask)
             transactions = t
             deliveries = d
             customers = c
-            packages = p
+            packages = pkgResult.0
         } catch {
             print("Error loading transactions: \(error)")
         }
@@ -261,7 +245,16 @@ struct TransactionRecordView: View {
     
     let customers: [Customer]
     let packages: [ServicePackage]
+    let preselectedCustomerId: UUID?
     let onSave: (Transaction) -> Void
+    
+    init(customers: [Customer], packages: [ServicePackage], preselectedCustomerId: UUID? = nil, onSave: @escaping (Transaction) -> Void) {
+        self.customers = customers
+        self.packages = packages
+        self.preselectedCustomerId = preselectedCustomerId
+        self.onSave = onSave
+        _selectedCustomerId = State(initialValue: preselectedCustomerId)
+    }
     
     @State private var selectedCustomerId: UUID?
     @State private var selectedPackageId: UUID?
@@ -352,7 +345,6 @@ struct TransactionRecordView: View {
         
         Task {
             do {
-                // Get customer to find store
                 let customer = customers.first { $0.id == customerId }
                 guard let storeId = customer?.associatedStoreId else {
                     errorMessage = "该客户未关联门店，请先为客户分配门店"
@@ -361,7 +353,6 @@ struct TransactionRecordView: View {
                     return
                 }
                 
-                // Calculate estimated completion date
                 let calendar = Calendar.current
                 let estDate = calendar.date(byAdding: .day, value: sessions * 7, to: selectedDate)
                 
@@ -371,6 +362,8 @@ struct TransactionRecordView: View {
                     packageId: packageId,
                     staffUserId: nil,
                     amount: amountValue,
+                    amountReceived: amountValue,
+                    outstandingAmount: 0,
                     totalSessions: sessions,
                     transactionDate: selectedDate,
                     estimatedCompletionDate: estDate,
@@ -378,14 +371,7 @@ struct TransactionRecordView: View {
                     notes: notes.isEmpty ? nil : notes
                 )
                 
-                let created: Transaction = try await supabase
-                    .from("transactions")
-                    .insert(transactionData)
-                    .select()
-                    .single()
-                    .execute()
-                    .value
-                
+                let created = try await TransactionService.shared.createTransaction(transactionData)
                 onSave(created)
                 dismiss()
             } catch {
@@ -487,25 +473,7 @@ struct DeliveryRecordView: View {
                     photos: nil
                 )
                 
-                let created: Delivery = try await supabase
-                    .from("deliveries")
-                    .insert(deliveryData)
-                    .select()
-                    .single()
-                    .execute()
-                    .value
-                
-                // Update transaction
-                _ = try await supabase
-                    .from("transactions")
-                    .update([
-                        "completed_sessions": String(nextSession),
-                        "first_delivery_date": existingDeliveries.isEmpty ? ISO8601DateFormatter().string(from: Date()) : nil,
-                        "status": nextSession >= transaction.totalSessions ? "completed" : "in_progress"
-                    ])
-                    .eq("id", value: transaction.id)
-                    .execute()
-                
+                let created = try await DeliveryService.shared.createDelivery(deliveryData)
                 onSave(created)
                 dismiss()
             } catch {

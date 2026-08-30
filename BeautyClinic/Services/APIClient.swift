@@ -2,7 +2,8 @@ import Foundation
 
 // MARK: - Configuration
 enum APIConfig {
-    static let baseURL = "http://124.221.217.56"
+    // 使用 HTTPS 域名连接服务器（ATS 合规，可上线）
+    static let baseURL = "https://andychenpersonal.com"
     
     static var authToken: String? {
         get { UserDefaults.standard.string(forKey: "api_auth_token") }
@@ -125,7 +126,7 @@ class AuthService {
         }
     }
     
-    var isAdmin: Bool { currentUser?.role == .admin }
+    var isAdmin: Bool { currentUser?.role == .admin || currentUser?.role == .superAdmin }
     var storeId: String? { currentUser?.storeId?.uuidString }
     
     struct AuthResponse: Codable {
