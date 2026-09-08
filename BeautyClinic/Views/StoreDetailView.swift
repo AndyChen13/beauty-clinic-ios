@@ -110,9 +110,25 @@ struct StoreDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    
+
                     Divider()
-                    
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("推荐酒店")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let recommendedHotel = store.recommendedHotel, !recommendedHotel.isEmpty {
+                            Text(recommendedHotel)
+                                .font(.subheadline)
+                        } else {
+                            Text("暂无推荐酒店，点击右上角编辑添加")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Divider()
+
                     if let createdAt = store.createdAt {
                         InfoRow(label: "创建时间", value: createdAt.formatted())
                     }
@@ -156,6 +172,7 @@ struct StoreDetailView: View {
                 imageUrl: nil,
                 notes: "测试备注",
                 introduction: "测试简介",
+                recommendedHotel: nil,
                 createdAt: Date(),
                 updatedAt: nil
             ),

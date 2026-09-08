@@ -61,7 +61,14 @@ struct ServiceRecordEditView: View {
     
     /// 计算后的新剩余次数
     private var calculatedRemaining: Int {
-        currentRemaining - sessionsUsedValue + extraSessionsValue
+        if isEditing, let record = record {
+            // 编辑已发生的记录：当前剩余已反映原扣减，按新旧消耗差值调整
+            let originalUsed = record.sessionsUsed
+            let newUsed = sessionsUsedValue
+            return currentRemaining + originalUsed - newUsed + extraSessionsValue
+        }
+        // 新建记录：原逻辑
+        return currentRemaining - sessionsUsedValue + extraSessionsValue
     }
     
     var body: some View {
@@ -76,6 +83,9 @@ struct ServiceRecordEditView: View {
                             .padding(.vertical, 4)
                     } else {
                         Picker("选择品类", selection: $selectedTransactionId) {
+                            if isEditing {
+                                Text("不选择品类").tag(nil as UUID?)
+                            }
                             ForEach(availableTransactions) { t in
                                 Text("\(t.packageName ?? "套餐") 剩余 \(t.remainingSessions)/\(t.totalSessions) 次 · ¥\(Int(t.amount))")
                                     .tag(t.id as UUID?)
@@ -235,7 +245,7 @@ struct ServiceRecordEditView: View {
                             Text("保存")
                         }
                     }
-                    .disabled(operatorName.isEmpty || bodyPart.isEmpty || selectedTransactionId == nil || isSaving)
+                    .disabled(operatorName.isEmpty || bodyPart.isEmpty || (selectedTransactionId == nil && !isEditing) || isSaving)
                 }
             }
             .alert("保存失败", isPresented: $showError) {
@@ -272,11 +282,7 @@ struct ServiceRecordEditView: View {
     
     private func saveRecord() {
         guard !operatorName.isEmpty, !bodyPart.isEmpty else { return }
-        guard let transactionId = selectedTransactionId else {
-            errorMessage = "请选择消耗的品类"
-            showError = true
-            return
-        }
+        let transactionId: UUID? = selectedTransactionId
         
         isSaving = true
         
@@ -312,6 +318,12 @@ struct ServiceRecordEditView: View {
                     let updated = try await ServiceRecordService.shared.updateRecord(id: record.id, update)
                     onSave(updated)
                 } else {
+                    guard let transactionId = transactionId else {
+                        errorMessage = "请选择消耗的品类"
+                        showError = true
+                        isSaving = false
+                        return
+                    }
                     let recordInsert = ServiceRecordInsert(
                         customerId: customer.id,
                         transactionId: transactionId,

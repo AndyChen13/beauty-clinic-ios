@@ -3,6 +3,7 @@ import SwiftUI
 import Charts
 import UIKit
 import UniformTypeIdentifiers
+import QuickLook
 
 // MARK: - Customers by Store
 struct StoreCustomerBreakdownView: View {
@@ -1202,12 +1203,18 @@ import UniformTypeIdentifiers
 struct TrainingMaterialsView: View {
     @EnvironmentObject var userState: UserState
     @State private var materials: [TrainingMaterial] = []
+    @State private var stores: [Store] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var selectedCategory: TrainingMaterialCategory?
     @State private var showUploadSheet = false
     
     private var canUpload: Bool {
+        guard let role = userState.currentUser?.role else { return false }
+        return role == .admin || role == .superAdmin
+    }
+    
+    private var canManage: Bool {
         guard let role = userState.currentUser?.role else { return false }
         return role == .admin || role == .superAdmin
     }
@@ -1231,7 +1238,19 @@ struct TrainingMaterialsView: View {
                         ForEach(groupedMaterials.keys.sorted { categorySort($0) < categorySort($1) }, id: \.self) { category in
                             Section(header: Text(category.displayName)) {
                                 ForEach(groupedMaterials[category] ?? []) { material in
-                                    TrainingMaterialRow(material: material)
+                                    TrainingMaterialRow(
+                                        material: material,
+                                        canManage: canManage,
+                                        stores: stores,
+                                        onUpdated: { updated in
+                                            if let index = materials.firstIndex(where: { $0.id == updated.id }) {
+                                                materials[index] = updated
+                                            }
+                                        },
+                                        onDelete: {
+                                            materials.removeAll { $0.id == material.id }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -1288,7 +1307,14 @@ struct TrainingMaterialsView: View {
         isLoading = true
         errorMessage = nil
         do {
-            materials = try await TrainingMaterialService.shared.listMaterials()
+            async let materialsTask = TrainingMaterialService.shared.listMaterials()
+            async let storesTask = StoreService.shared.listStores()
+            materials = try await materialsTask
+            stores = try await storesTask
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            print("[TrainingMaterials] Request cancelled")
+        } catch is CancellationError {
+            print("[TrainingMaterials] Load cancelled")
         } catch {
             errorMessage = "加载失败: \(error.localizedDescription)"
         }
@@ -1315,12 +1341,48 @@ struct CategoryChip: View {
     }
 }
 
+private enum MaterialSheet: Identifiable {
+    case downloadOptions
+    case share
+    case preview
+    case export
+    case openInMenu
+    case rename
+    case transfer
+
+    var id: String {
+        switch self {
+        case .downloadOptions: return "downloadOptions"
+        case .share: return "share"
+        case .preview: return "preview"
+        case .export: return "export"
+        case .openInMenu: return "openInMenu"
+        case .rename: return "rename"
+        case .transfer: return "transfer"
+        }
+    }
+}
+
 struct TrainingMaterialRow: View {
     let material: TrainingMaterial
+    let canManage: Bool
+    let stores: [Store]
+    let onUpdated: (TrainingMaterial) -> Void
+    let onDelete: () -> Void
+    
     @State private var shareURL: URL?
     @State private var isDownloading = false
-    @State private var showShareSheet = false
     @State private var downloadError: String?
+    @State private var downloadProgress: Double = 0
+    @State private var activeSheet: MaterialSheet?
+    @State private var renameTitle = ""
+    @State private var renameError: String?
+    @State private var isRenaming = false
+    @State private var transferCategory: TrainingMaterialCategory = .general
+    @State private var transferStore: Store?
+    @State private var transferError: String?
+    @State private var isTransferring = false
+    @State private var showDeleteConfirm = false
     
     var body: some View {
         HStack(spacing: 12) {
@@ -1341,53 +1403,398 @@ struct TrainingMaterialRow: View {
             
             Spacer()
             
-            Button(action: { Task { await downloadAndShare() } }) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.subheadline)
-                    .foregroundStyle(.blue)
+            Button(action: { Task { await downloadFile() } }) {
+                ZStack {
+                    if isDownloading {
+                        VStack(spacing: 2) {
+                            ProgressView(value: downloadProgress)
+                                .frame(width: 44)
+                                .tint(.blue)
+                            Text("\(Int(downloadProgress * 100))%")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                        }
+                    } else {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                    }
+                }
             }
             .buttonStyle(.plain)
             .disabled(isDownloading)
-            .overlay {
-                if isDownloading {
-                    ProgressView()
+            
+            Menu {
+                Button { Task { await downloadFile() } } label: {
+                    Label("下载", systemImage: "square.and.arrow.down")
                 }
+                Button { activeSheet = .preview } label: {
+                    Label("预览", systemImage: "eye")
+                }
+                Button { activeSheet = .export } label: {
+                    Label("保存到文件", systemImage: "folder")
+                }
+                Button { activeSheet = .openInMenu } label: {
+                    Label("用其他应用打开", systemImage: "square.and.arrow.up")
+                }
+                Button { activeSheet = .share } label: {
+                    Label("分享", systemImage: "square.and.arrow.up")
+                }
+                if canManage {
+                    Divider()
+                    Button {
+                        renameTitle = material.title
+                        activeSheet = .rename
+                    } label: {
+                        Label("重命名", systemImage: "pencil")
+                    }
+                    Button {
+                        transferCategory = material.category
+                        transferStore = stores.first { $0.id == material.storeId }
+                        activeSheet = .transfer
+                    } label: {
+                        Label("转移分类", systemImage: "rectangle.2.swap")
+                    }
+                    Divider()
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("删除", systemImage: "trash")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 6)
-        .sheet(isPresented: $showShareSheet) {
-            if let url = shareURL {
-                ShareSheet(activityItems: [url])
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .downloadOptions:
+                downloadOptionsSheet
+            case .share:
+                Group {
+                    if let url = shareURL {
+                        ShareSheet(activityItems: [url])
+                    }
+                }
+            case .preview:
+                Group {
+                    if let url = shareURL {
+                        QLPreviewView(url: url)
+                    }
+                }
+            case .export:
+                Group {
+                    if let url = shareURL {
+                        DocumentPickerExport(url: url)
+                    }
+                }
+            case .openInMenu:
+                EmptyView()
+            case .rename:
+                renameSheet
+            case .transfer:
+                transferSheet
             }
         }
-        .alert("下载失败", isPresented: .constant(downloadError != nil)) {
+        .alert("操作失败", isPresented: .constant(downloadError != nil)) {
             Button("确定") { downloadError = nil }
         } message: {
             Text(downloadError ?? "")
         }
+        .confirmationDialog("确认删除？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("删除", role: .destructive) { Task { await deleteMaterial() } }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后不可恢复")
+        }
+        .background {
+            OpenInMenuAnchor(url: $shareURL, isPresented: .init(
+                get: { activeSheet == .openInMenu },
+                set: { if !$0 { activeSheet = nil } }
+            ))
+                .frame(width: 0, height: 0)
+        }
     }
     
-    private func downloadAndShare() async {
+    private func downloadFile() async {
         guard let url = URL(string: material.fileUrl) else { return }
         isDownloading = true
+        downloadProgress = 0
         defer { isDownloading = false }
         do {
-            let (tempURL, _) = try await URLSession.shared.download(from: url)
             let filename = material.title + "." + material.fileType.rawValue
             let destination = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try? FileManager.default.removeItem(at: destination)
+            
+            let delegate = DownloadProgressDelegate(destinationURL: destination) { progress in
+                DispatchQueue.main.async {
+                    self.downloadProgress = progress
+                }
             }
-            try FileManager.default.moveItem(at: tempURL, to: destination)
+            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+            let task = session.downloadTask(with: url)
+            let finalURL = try await delegate.downloadResult(for: task)
+            session.finishTasksAndInvalidate()
+            
             await MainActor.run {
-                shareURL = destination
-                showShareSheet = true
+                shareURL = finalURL
+                activeSheet = .downloadOptions
             }
         } catch {
             await MainActor.run {
                 downloadError = error.localizedDescription
             }
         }
+    }
+    
+    private var renameSheet: some View {
+        NavigationStack {
+            Form {
+                Section("文件名称") {
+                    TextField("名称", text: $renameTitle)
+                }
+                if let error = renameError {
+                    Section {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
+                }
+            }
+            .navigationTitle("重命名")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { activeSheet = nil }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: { Task { await saveRename() } }) {
+                        Text(isRenaming ? "保存中" : "保存")
+                    }
+                    .disabled(renameTitle.isEmpty || isRenaming)
+                }
+            }
+        }
+    }
+    
+    private func saveRename() async {
+        isRenaming = true
+        renameError = nil
+        do {
+            let updated = try await TrainingMaterialService.shared.updateMaterial(
+                id: material.id,
+                data: TrainingMaterialUpdate(title: renameTitle, category: nil, version: nil, description: nil, storeId: nil)
+            )
+            await MainActor.run {
+                isRenaming = false
+                activeSheet = nil
+                onUpdated(updated)
+            }
+        } catch {
+            await MainActor.run {
+                isRenaming = false
+                renameError = error.localizedDescription
+            }
+        }
+    }
+    
+    private var downloadOptionsSheet: some View {
+        NavigationStack {
+            List {
+                Button {
+                    activeSheet = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        activeSheet = .preview
+                    }
+                } label: {
+                    Label("预览", systemImage: "eye")
+                }
+                Button {
+                    activeSheet = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        activeSheet = .share
+                    }
+                } label: {
+                    Label("分享", systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    activeSheet = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        activeSheet = .export
+                    }
+                } label: {
+                    Label("保存到文件", systemImage: "folder")
+                }
+                Button {
+                    activeSheet = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        activeSheet = .openInMenu
+                    }
+                } label: {
+                    Label("用其他应用打开", systemImage: "square.and.arrow.up")
+                }
+            }
+            .navigationTitle("已下载")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { activeSheet = nil }
+                }
+            }
+        }
+    }
+
+    private var transferSheet: some View {
+        NavigationStack {
+            Form {
+                Section("分类") {
+                    ForEach(TrainingMaterialCategory.allCases, id: \.self) { category in
+                        Button {
+                            transferCategory = category
+                        } label: {
+                            HStack {
+                                Text(category.displayName)
+                                Spacer()
+                                if transferCategory == category {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if transferCategory == .storeSpecific {
+                    Section("指定门店") {
+                        Button {
+                            transferStore = nil
+                        } label: {
+                            HStack {
+                                Text("请选择门店")
+                                Spacer()
+                                if transferStore == nil {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                        ForEach(stores) { store in
+                            Button {
+                                transferStore = store
+                            } label: {
+                                HStack {
+                                    Text(store.name)
+                                    Spacer()
+                                    if transferStore?.id == store.id {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if let error = transferError {
+                    Section {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
+                }
+            }
+            .navigationTitle("转移分类")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { activeSheet = nil }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: { Task { await saveTransfer() } }) {
+                        Text(isTransferring ? "保存中" : "保存")
+                    }
+                    .disabled(isTransferring || (transferCategory == .storeSpecific && transferStore == nil))
+                }
+            }
+        }
+    }
+    
+    private func saveTransfer() async {
+        isTransferring = true
+        transferError = nil
+        do {
+            let storeIdUpdate: UUID?? = {
+                switch transferCategory {
+                case .storeSpecific:
+                    return transferStore.map { .some($0.id) } ?? .some(nil)
+                default:
+                    return .some(nil)
+                }
+            }()
+            let updated = try await TrainingMaterialService.shared.updateMaterial(
+                id: material.id,
+                data: TrainingMaterialUpdate(
+                    title: nil,
+                    category: transferCategory,
+                    version: nil,
+                    description: nil,
+                    storeId: storeIdUpdate
+                )
+            )
+            await MainActor.run {
+                isTransferring = false
+                activeSheet = nil
+                onUpdated(updated)
+            }
+        } catch {
+            await MainActor.run {
+                isTransferring = false
+                transferError = error.localizedDescription
+            }
+        }
+    }
+    
+    private func deleteMaterial() async {
+        do {
+            try await TrainingMaterialService.shared.deleteMaterial(id: material.id)
+            await MainActor.run {
+                onDelete()
+            }
+        } catch {
+            await MainActor.run {
+                downloadError = error.localizedDescription
+            }
+        }
+    }
+}
+
+// 用于触发 UIDocumentInteractionController 的 OpenInMenu 的透明锚点
+struct OpenInMenuAnchor: UIViewControllerRepresentable {
+    @Binding var url: URL?
+    @Binding var isPresented: Bool
+    
+    func makeUIViewController(context: Context) -> UIViewController {
+        UIViewController()
+    }
+    
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        guard isPresented, let url = url else { return }
+        let doc = UIDocumentInteractionController(url: url)
+        doc.delegate = context.coordinator
+        context.coordinator.controller = doc
+        doc.presentOpenInMenu(from: uiViewController.view.bounds, in: uiViewController.view, animated: true)
+        DispatchQueue.main.async { isPresented = false }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    class Coordinator: NSObject, UIDocumentInteractionControllerDelegate {
+        weak var controller: UIDocumentInteractionController?
     }
 }
 
@@ -1403,6 +1810,7 @@ struct UploadTrainingMaterialSheet: View {
     @State private var fileType: FileType = .pdf
     @State private var showFileImporter = false
     @State private var isUploading = false
+    @State private var uploadProgress: Double = 0
     @State private var errorMessage: String?
     
     let onCompleted: () -> Void
@@ -1411,18 +1819,46 @@ struct UploadTrainingMaterialSheet: View {
         NavigationStack {
             Form {
                 Section("分类") {
-                    Picker("分类", selection: $selectedCategory) {
-                        ForEach(TrainingMaterialCategory.allCases, id: \.self) { category in
-                            Text(category.displayName).tag(category)
+                    ForEach(TrainingMaterialCategory.allCases, id: \.self) { category in
+                        Button {
+                            selectedCategory = category
+                        } label: {
+                            HStack {
+                                Text(category.displayName)
+                                Spacer()
+                                if selectedCategory == category {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
-                    
+
                     if selectedCategory == .storeSpecific {
-                        Picker("指定门店", selection: $selectedStore) {
-                            Text("请选择门店").tag(nil as Store?)
-                            ForEach(stores) { store in
-                                Text(store.name).tag(store as Store?)
+                        Button {
+                            selectedStore = nil
+                        } label: {
+                            HStack {
+                                Text("请选择门店")
+                                Spacer()
+                                if selectedStore == nil {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                        ForEach(stores) { store in
+                            Button {
+                                selectedStore = store
+                            } label: {
+                                HStack {
+                                    Text(store.name)
+                                    Spacer()
+                                    if selectedStore?.id == store.id {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1445,6 +1881,16 @@ struct UploadTrainingMaterialSheet: View {
                         Text("已读取 \(data.count) 字节")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    
+                    if isUploading {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("上传中 \(Int(uploadProgress * 100))%")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                            ProgressView(value: uploadProgress)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
                 
@@ -1483,11 +1929,7 @@ struct UploadTrainingMaterialSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: { Task { await upload() } }) {
-                        if isUploading {
-                            ProgressView()
-                        } else {
-                            Text("上传")
-                        }
+                        Text(isUploading ? "上传中" : "上传")
                     }
                     .disabled(pickedData == nil || isUploading || (selectedCategory == .storeSpecific && selectedStore == nil))
                 }
@@ -1507,11 +1949,16 @@ struct UploadTrainingMaterialSheet: View {
     private func upload() async {
         guard let data = pickedData else { return }
         isUploading = true
+        uploadProgress = 0
         errorMessage = nil
         do {
             let ext = fileType.rawValue
             let key = "training/\(UUID().uuidString).\(ext)"
-            let fileUrl = try await TencentCOSUploadService.uploadFile(data, key: key, contentType: fileType.mimeType)
+            let fileUrl = try await TencentCOSUploadService.uploadFile(data, key: key, contentType: fileType.mimeType) { progress in
+                DispatchQueue.main.async {
+                    self.uploadProgress = progress
+                }
+            }
             let insert = TrainingMaterialInsert(
                 title: fileName,
                 version: "1.0",
@@ -1589,3 +2036,90 @@ struct ShareSheet: UIViewControllerRepresentable {
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
+
+// MARK: - Save to Files
+struct DocumentPickerExport: UIViewControllerRepresentable {
+    let url: URL
+    
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+    }
+    
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+}
+
+// MARK: - QuickLook Preview
+struct QLPreviewView: UIViewControllerRepresentable {
+    let url: URL
+    
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(url: url)
+    }
+    
+    class Coordinator: NSObject, QLPreviewControllerDataSource {
+        let url: URL
+        init(url: URL) { self.url = url }
+        
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+            1
+        }
+        
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+            url as NSURL as QLPreviewItem
+        }
+    }
+}
+
+// MARK: - Download Progress Delegate
+final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate {
+    private let destinationURL: URL
+    private let onProgress: (Double) -> Void
+    private var continuation: CheckedContinuation<URL, Error>?
+    
+    init(destinationURL: URL, onProgress: @escaping (Double) -> Void) {
+        self.destinationURL = destinationURL
+        self.onProgress = onProgress
+    }
+    
+    func downloadResult(for task: URLSessionDownloadTask) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            task.resume()
+        }
+    }
+    
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        onProgress(progress)
+    }
+    
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        do {
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
+            }
+            try FileManager.default.copyItem(at: location, to: destinationURL)
+            continuation?.resume(returning: destinationURL)
+        } catch {
+            continuation?.resume(throwing: error)
+        }
+        continuation = nil
+    }
+    
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error = error {
+            continuation?.resume(throwing: error)
+            continuation = nil
+        }
+    }
+}
+

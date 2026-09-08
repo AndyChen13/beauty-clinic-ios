@@ -21,6 +21,7 @@ class StoreService {
             let imageUrl: String?
             let notes: String?
             let introduction: String?
+            let recommendedHotel: String?
             let createdAt: String?
             let updatedAt: String?
         }
@@ -37,6 +38,7 @@ class StoreService {
                 imageUrl: r.imageUrl,
                 notes: r.notes,
                 introduction: r.introduction,
+                recommendedHotel: r.recommendedHotel,
                 createdAt: nil,
                 updatedAt: nil
             )
@@ -54,6 +56,7 @@ class StoreService {
             let imageUrl: String?
             let notes: String?
             let introduction: String?
+            let recommendedHotel: String?
             let createdAt: String?
             let updatedAt: String?
         }
@@ -85,6 +88,7 @@ class StoreService {
             let imageUrl: String?
             let notes: String?
             let introduction: String?
+            let recommendedHotel: String?
         }
         
         let r: StoreResponse = try await APIClient.shared.post(path: "/api/stores", body: insert)
@@ -114,6 +118,7 @@ class StoreService {
             let imageUrl: String?
             let notes: String?
             let introduction: String?
+            let recommendedHotel: String?
         }
         
         let r: StoreResponse = try await APIClient.shared.put(
@@ -384,6 +389,10 @@ class TransactionService {
         let estimatedCompletionDate: String?
         let status: String
         let notes: String?
+        let modifiedAt: String?
+        let modifiedBy: String?
+        let modifiedByName: String?
+        let TransactionAuditLog: [AuditLogResponse]?
         let createdAt: String?
         let updatedAt: String?
         let customer: NameBrief?
@@ -393,9 +402,32 @@ class TransactionService {
         struct NameBrief: Codable {
             let name: String
         }
+        
+        struct AuditLogResponse: Codable {
+            let id: String
+            let transactionId: String
+            let field: String
+            let oldValue: String?
+            let newValue: String?
+            let editedBy: String?
+            let editedByName: String?
+            let editedAt: String?
+        }
     }
     
     private func mapToTransaction(_ r: TransactionResponse) -> Transaction {
+        let logs = r.TransactionAuditLog?.map { log in
+            TransactionAuditLog(
+                id: UUID(uuidString: log.id) ?? UUID(),
+                transactionId: UUID(uuidString: log.transactionId) ?? UUID(),
+                field: log.field,
+                oldValue: log.oldValue,
+                newValue: log.newValue,
+                editedBy: log.editedBy,
+                editedByName: log.editedByName,
+                editedAt: parseISO8601Date(log.editedAt)
+            )
+        }
         var t = Transaction(
             id: UUID(uuidString: r.id)!,
             customerId: UUID(uuidString: r.customerId)!,
@@ -412,6 +444,10 @@ class TransactionService {
             estimatedCompletionDate: parseISO8601Date(r.estimatedCompletionDate),
             status: TransactionStatus(rawValue: r.status) ?? .pending,
             notes: r.notes,
+            modifiedAt: parseISO8601Date(r.modifiedAt),
+            modifiedBy: r.modifiedBy,
+            modifiedByName: r.modifiedByName,
+            auditLogs: logs,
             createdAt: parseISO8601Date(r.createdAt),
             updatedAt: parseISO8601Date(r.updatedAt)
         )
@@ -783,6 +819,25 @@ class TrainingMaterialService {
     
     func createMaterial(_ insert: TrainingMaterialInsert) async throws -> TrainingMaterial {
         let r: MaterialResponse = try await APIClient.shared.post(path: "/api/training-materials", body: insert)
+        return TrainingMaterial(
+            id: UUID(uuidString: r.id)!,
+            packageId: r.packageId.flatMap { UUID(uuidString: $0) },
+            category: TrainingMaterialCategory(rawValue: r.category) ?? .general,
+            storeId: r.storeId.flatMap { UUID(uuidString: $0) },
+            title: r.title,
+            version: r.version,
+            fileUrl: r.fileUrl,
+            fileType: FileType(rawValue: r.fileType) ?? .pdf,
+            description: r.description,
+            uploadedBy: r.uploadedBy.flatMap { UUID(uuidString: $0) },
+            isActive: r.isActive,
+            createdAt: nil,
+            updatedAt: nil
+        )
+    }
+    
+    func updateMaterial(id: UUID, data: TrainingMaterialUpdate) async throws -> TrainingMaterial {
+        let r: MaterialResponse = try await APIClient.shared.put(path: "/api/training-materials/\(id.uuidString)", body: data)
         return TrainingMaterial(
             id: UUID(uuidString: r.id)!,
             packageId: r.packageId.flatMap { UUID(uuidString: $0) },

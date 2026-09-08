@@ -289,7 +289,7 @@ struct CustomerEditView: View {
     
     private var transactionHistorySection: some View {
         Section("成交历史") {
-            Toggle("已填写首次成交时间", isOn: $hasFirstTransactionDate)
+            Toggle("自定义首次成交时间", isOn: $hasFirstTransactionDate)
             if hasFirstTransactionDate {
                 DatePicker("首次成交时间", selection: $firstTransactionDate, displayedComponents: .date)
             }
@@ -475,7 +475,7 @@ struct CustomerEditView: View {
         Section("成交历史") {
             Toggle("自定义成交", isOn: $useCustomDeal)
             
-            Toggle("已填写首次成交时间", isOn: $hasFirstTransactionDate)
+            Toggle("自定义首次成交时间", isOn: $hasFirstTransactionDate)
             if hasFirstTransactionDate {
                 DatePicker("首次成交时间", selection: $firstTransactionDate, displayedComponents: .date)
             }

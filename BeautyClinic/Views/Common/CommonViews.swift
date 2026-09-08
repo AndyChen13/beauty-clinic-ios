@@ -143,8 +143,10 @@ extension View {
 
 // MARK: - Transaction Mini Row
 struct TransactionMiniRow: View {
+    @EnvironmentObject var userState: UserState
     let transaction: Transaction
     var onPay: (() -> Void)? = nil
+    var onEdit: (() -> Void)? = nil
     
     private var isPaymentLike: Bool {
         transaction.status == .paid || transaction.status == .refunded
@@ -191,6 +193,13 @@ struct TransactionMiniRow: View {
                     }
                     .font(.caption2)
                     .foregroundColor(.green)
+                }
+                if userState.isAdmin, let onEdit = onEdit, !isPaymentLike {
+                    Button("修改") {
+                        onEdit()
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.blue)
                 }
             }
         }

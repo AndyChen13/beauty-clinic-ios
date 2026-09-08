@@ -152,6 +152,8 @@ struct StoreListView: View {
                 stores = s
                 users = u
             }
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            print("[StoreList] Request cancelled")
         } catch is CancellationError {
             print("[StoreList] Load cancelled")
         } catch {
@@ -396,6 +398,7 @@ struct StoreEditView: View {
     @State private var imageUrl: String?
     @State private var notes = ""
     @State private var introduction = ""
+    @State private var recommendedHotel = ""
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -447,7 +450,12 @@ struct StoreEditView: View {
                     TextEditor(text: $notes)
                         .frame(minHeight: 60)
                 }
-                
+
+                Section("推荐酒店") {
+                    TextEditor(text: $recommendedHotel)
+                        .frame(minHeight: 60)
+                }
+
                 Section("门店头像") {
                     VStack(spacing: 16) {
                         if let imageData = selectedImageData,
@@ -536,6 +544,7 @@ struct StoreEditView: View {
                     imageUrl = store.imageUrl
                     notes = store.notes ?? ""
                     introduction = store.introduction ?? ""
+                    recommendedHotel = store.recommendedHotel ?? ""
                 }
             }
         }
@@ -634,7 +643,8 @@ struct StoreEditView: View {
                     managerId: managerId,
                     imageUrl: imageUrl,
                     notes: notes.isEmpty ? nil : notes,
-                    introduction: introduction.isEmpty ? nil : introduction
+                    introduction: introduction.isEmpty ? nil : introduction,
+                    recommendedHotel: recommendedHotel.isEmpty ? nil : recommendedHotel
                 )
                 
                 switch mode {

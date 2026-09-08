@@ -178,6 +178,38 @@ struct CustomerInsert: Codable, Sendable {
         case conversionProbability = "conversion_probability"
         case remainingSessions = "remaining_sessions"
     }
+    
+    init(
+        phone: String,
+        name: String,
+        gender: String? = nil,
+        birthdate: String? = nil,
+        medicalHistory: String? = nil,
+        preferences: [String: String]? = nil,
+        associatedStoreId: UUID? = nil,
+        photoUrl: String? = nil,
+        firstTransactionDate: Date? = nil,
+        firstTransactionAmount: Double? = nil,
+        amountReceived: Double? = nil,
+        outstandingAmount: Double? = nil,
+        conversionProbability: Int? = nil,
+        remainingSessions: Int? = nil
+    ) {
+        self.phone = phone
+        self.name = name
+        self.gender = gender
+        self.birthdate = birthdate
+        self.medicalHistory = medicalHistory
+        self.preferences = preferences
+        self.associatedStoreId = associatedStoreId
+        self.photoUrl = photoUrl
+        self.firstTransactionDate = firstTransactionDate
+        self.firstTransactionAmount = firstTransactionAmount
+        self.amountReceived = amountReceived
+        self.outstandingAmount = outstandingAmount
+        self.conversionProbability = conversionProbability
+        self.remainingSessions = remainingSessions
+    }
 }
 
 struct CustomerPhoto: Codable, Identifiable, Hashable, Sendable {

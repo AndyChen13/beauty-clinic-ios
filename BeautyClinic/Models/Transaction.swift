@@ -18,6 +18,10 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
     let estimatedCompletionDate: Date?
     let status: TransactionStatus
     let notes: String?
+    let modifiedAt: Date?
+    let modifiedBy: String?
+    let modifiedByName: String?
+    var auditLogs: [TransactionAuditLog]?
     let createdAt: Date?
     let updatedAt: Date?
     
@@ -40,6 +44,10 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
         case firstDeliveryDate = "first_delivery_date"
         case estimatedCompletionDate = "estimated_completion_date"
         case status, notes
+        case modifiedAt = "modified_at"
+        case modifiedBy = "modified_by"
+        case modifiedByName = "modified_by_name"
+        case auditLogs = "audit_logs"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case customerName = "customer_name"
@@ -121,12 +129,51 @@ struct TransactionInsert: Codable, Sendable {
 }
 
 struct TransactionUpdate: Codable, Sendable {
+    let amount: Double?
     let amountReceived: Double?
-    let outstandingAmount: Double?
+    let notes: String?
+    
+    init(amount: Double? = nil, amountReceived: Double? = nil, notes: String? = nil) {
+        self.amount = amount
+        self.amountReceived = amountReceived
+        self.notes = notes
+    }
     
     enum CodingKeys: String, CodingKey {
+        case amount
         case amountReceived = "amount_received"
-        case outstandingAmount = "outstanding_amount"
+        case notes
+    }
+}
+
+struct TransactionAuditLog: Codable, Identifiable, Hashable, Sendable {
+    let id: UUID
+    let transactionId: UUID
+    let field: String
+    let oldValue: String?
+    let newValue: String?
+    let editedBy: String?
+    let editedByName: String?
+    let editedAt: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case transactionId = "transaction_id"
+        case field
+        case oldValue = "old_value"
+        case newValue = "new_value"
+        case editedBy = "edited_by"
+        case editedByName = "edited_by_name"
+        case editedAt = "edited_at"
+    }
+    
+    var fieldDisplayName: String {
+        switch field {
+        case "amount": return "成交金额"
+        case "amountReceived": return "已收金额"
+        case "notes": return "备注"
+        default: return field
+        }
     }
 }
 

@@ -9,17 +9,31 @@ enum COSConfig {
     static let uploadEndpoint = "https://\(bucket).cos.\(region).myqcloud.com"
 }
 
+// MARK: - Progress Delegate
+final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate {
+    private let onProgress: (Double) -> Void
+    init(onProgress: @escaping (Double) -> Void) {
+        self.onProgress = onProgress
+    }
+    
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        let progress = Double(totalBytesSent) / Double(totalBytesExpectedToSend)
+        DispatchQueue.main.async { self.onProgress(progress) }
+    }
+}
+
 // MARK: - Upload Service
 enum TencentCOSUploadService {
     
     /// Upload image data to Tencent Cloud COS via SCF sign server
-    static func uploadImage(_ data: Data, key: String? = nil) async throws -> String {
+    static func uploadImage(_ data: Data, key: String? = nil, progress: ((Double) -> Void)? = nil) async throws -> String {
         let fileKey = key ?? "\(UUID().uuidString).jpg"
-        return try await uploadFile(data, key: fileKey, contentType: "image/jpeg")
+        return try await uploadFile(data, key: fileKey, contentType: "image/jpeg", progress: progress)
     }
     
     /// Upload any file data to COS with the given MIME type
-    static func uploadFile(_ data: Data, key: String? = nil, contentType: String) async throws -> String {
+    static func uploadFile(_ data: Data, key: String? = nil, contentType: String, progress: (@Sendable (Double) -> Void)? = nil) async throws -> String {
         let fileKey = key ?? "\(UUID().uuidString)"
         let encodedKey = fileKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileKey
         
@@ -36,7 +50,15 @@ enum TencentCOSUploadService {
         request.setValue(COSConfig.bucket + ".cos." + COSConfig.region + ".myqcloud.com", forHTTPHeaderField: "Host")
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
         
-        let (responseData, response) = try await URLSession.shared.data(for: request)
+        let (responseData, response): (Data, URLResponse)
+        if let progress = progress {
+            let delegate = UploadProgressDelegate(onProgress: progress)
+            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+            (responseData, response) = try await session.data(for: request)
+            session.finishTasksAndInvalidate()
+        } else {
+            (responseData, response) = try await URLSession.shared.data(for: request)
+        }
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw COSError.invalidResponse

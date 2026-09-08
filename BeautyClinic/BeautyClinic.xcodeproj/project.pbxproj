@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		67DA245A462645EC867EF1EA336E2FEF /* TransactionEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD101DB5874C43C183C2485BD8D5C282 /* TransactionEditSheet.swift */; };
 		07C68C0DCBA440CEA6971A97 /* DashboardDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84D6EE3F80D24B22B8629C53 /* DashboardDetailViews.swift */; };
 		0C0B66FF3E0442A8E6FACA8D /* CustomerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084CA9FBBF8416A1834CF65A /* CustomerListView.swift */; };
 		2B3D3315832C4A6AF4D389D7 /* AdminApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCE7F138FA9979D56CF158B /* AdminApprovalView.swift */; };
@@ -50,6 +51,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CD101DB5874C43C183C2485BD8D5C282 /* TransactionEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditSheet.swift; sourceTree = "<group>"; };
 		03F7C2D9F9A01AD1C018D9E7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		07BB3C08D0A65572AA656B5F /* StoreListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreListView.swift; sourceTree = "<group>"; };
 		084CA9FBBF8416A1834CF65A /* CustomerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerListView.swift; sourceTree = "<group>"; };
@@ -197,6 +199,8 @@
 				BD4351DC5BC36FD10D6982AA /* StoreDetailView.swift */,
 				07BB3C08D0A65572AA656B5F /* StoreListView.swift */,
 				BBA41B63D974C3A0A46E6252 /* TransactionListView.swift */,
+
+				CD101DB5874C43C183C2485BD8D5C282 /* TransactionEditSheet.swift */,
 				E605FC00303C229200C2CCF4 /* UserManagementView.swift */,
 				24C69AE2885CA8DDCFEC1F5A /* Common */,
 			);
@@ -329,6 +333,7 @@
 				E44BD5114E6A7E5FEA0A318A /* TencentCOSUploadService.swift in Sources */,
 				8143D951EA7E2B29003B844D /* Transaction.swift in Sources */,
 				72E80885FE83A3C1B4259C50 /* TransactionListView.swift in Sources */,
+				67DA245A462645EC867EF1EA336E2FEF /* TransactionEditSheet.swift in Sources */,
 				DF7CD4DAFF23A312C150A024 /* User.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

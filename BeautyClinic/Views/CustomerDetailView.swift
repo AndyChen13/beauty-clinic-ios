@@ -1,6 +1,10 @@
 // Views/CustomerDetailView.swift
 import SwiftUI
 
+extension URL: Identifiable {
+    public var id: String { absoluteString }
+}
+
 struct CustomerDetailView: View {
     @EnvironmentObject var userState: UserState
     @State var customer: Customer
@@ -18,7 +22,9 @@ struct CustomerDetailView: View {
     @State private var showingRefundSheet = false
     @State private var showingPaymentSheet = false
     @State private var selectedTransactionForPayment: Transaction?
+    @State private var selectedTransactionForEdit: Transaction?
     @State private var selectedRecord: ServiceRecord?
+    @State private var fullPhotoURL: URL?
     
     private var storeName: String {
         if let storeId = customer.associatedStoreId,
@@ -117,6 +123,9 @@ struct CustomerDetailView: View {
                 }
             }
         }
+        .fullScreenCover(item: $fullPhotoURL) { url in
+            FullPhotoView(url: url)
+        }
         .sheet(isPresented: $showingServiceSheet) {
             ServiceRecordEditView(
                 record: nil,
@@ -157,6 +166,14 @@ struct CustomerDetailView: View {
                 onCancel: { selectedTransactionForPayment = nil }
             )
         }
+        .sheet(item: $selectedTransactionForEdit) { transaction in
+            TransactionEditSheet(transaction: transaction) {
+                Task {
+                    await loadTransactions()
+                    await loadCustomer()
+                }
+            }
+        }
         .sheet(isPresented: $showingPaymentSheet) {
             AddPaymentSheet(
                 customer: customer,
@@ -176,6 +193,80 @@ struct CustomerDetailView: View {
             await loadServiceRecords()
         }
     }
+
+    private struct FullPhotoView: View {
+        let url: URL?
+        @Environment(\.dismiss) private var dismiss
+        @State private var image: UIImage?
+        @State private var isLoading = true
+        @State private var errorMessage: String?
+
+        var body: some View {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                } else if let errorMessage {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundStyle(.yellow)
+                        Text(errorMessage)
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                        if let url {
+                            Text(url.absoluteString)
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
+                        }
+                    }
+                } else {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .foregroundStyle(.white)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismiss()
+            }
+            .task {
+                await loadImage()
+            }
+        }
+
+        private func loadImage() async {
+            guard let url else {
+                errorMessage = "图片链接为空"
+                isLoading = false
+                return
+            }
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                if let httpResponse = response as? HTTPURLResponse,
+                   !(200...299).contains(httpResponse.statusCode) {
+                    errorMessage = "加载失败：HTTP \(httpResponse.statusCode)"
+                    isLoading = false
+                    return
+                }
+                guard let uiImage = UIImage(data: data) else {
+                    errorMessage = "无法解析图片数据"
+                    isLoading = false
+                    return
+                }
+                image = uiImage
+                isLoading = false
+            } catch {
+                errorMessage = "加载失败：\(error.localizedDescription)"
+                isLoading = false
+            }
+        }
+    }
     
     private var profileCard: some View {
         VStack(spacing: 14) {
@@ -187,6 +278,10 @@ struct CustomerDetailView: View {
                 }
                 .frame(width: 72, height: 72)
                 .clipShape(Circle())
+                .contentShape(Circle())
+                .onTapGesture {
+                    fullPhotoURL = URL(string: photoUrl)
+                }
             } else {
                 AvatarView(name: customer.name, size: 72)
             }
@@ -312,6 +407,8 @@ struct CustomerDetailView: View {
                 ForEach(transactions) { transaction in
                     TransactionMiniRow(transaction: transaction) {
                         selectedTransactionForPayment = transaction
+                    } onEdit: {
+                        selectedTransactionForEdit = transaction
                     }
                 }
             }
@@ -815,7 +912,7 @@ struct AddPaymentSheet: View {
                 let newReceived = (targetTx.amountReceived ?? 0) + paymentAmountValue
                 _ = try? await TransactionService.shared.updateTransaction(
                     id: targetTx.id.uuidString,
-                    data: TransactionUpdate(amountReceived: newReceived, outstandingAmount: newOutstanding)
+                    data: TransactionUpdate(amountReceived: newReceived)
                 )
                 
                 // 同步刷新客户档案财务字段

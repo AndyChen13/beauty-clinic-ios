@@ -153,6 +153,30 @@ struct TrainingMaterialInsert: Codable, Sendable {
     }
 }
 
+struct TrainingMaterialUpdate: Codable, Sendable {
+    let title: String?
+    let category: TrainingMaterialCategory?
+    let version: String?
+    let description: String?
+    let storeId: UUID??
+    
+    enum CodingKeys: String, CodingKey {
+        case title, category, version, description
+        case storeId = "store_id"
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(category, forKey: .category)
+        try container.encodeIfPresent(version, forKey: .version)
+        try container.encodeIfPresent(description, forKey: .description)
+        if let storeId = storeId {
+            try container.encode(storeId, forKey: .storeId)
+        }
+    }
+}
+
 enum FileType: String, Codable, Sendable, CaseIterable {
     case pdf = "pdf"
     case ppt = "ppt"

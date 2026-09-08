@@ -12,6 +12,7 @@ struct Store: Codable, Identifiable, Hashable, Sendable {
     let imageUrl: String?
     let notes: String?
     let introduction: String?
+    let recommendedHotel: String?
     let createdAt: Date?
     let updatedAt: Date?
     
@@ -25,6 +26,7 @@ struct Store: Codable, Identifiable, Hashable, Sendable {
         imageUrl: String? = nil,
         notes: String? = nil,
         introduction: String? = nil,
+        recommendedHotel: String? = nil,
         createdAt: Date? = nil,
         updatedAt: Date? = nil
     ) {
@@ -37,6 +39,7 @@ struct Store: Codable, Identifiable, Hashable, Sendable {
         self.imageUrl = imageUrl
         self.notes = notes
         self.introduction = introduction
+        self.recommendedHotel = recommendedHotel
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -45,6 +48,7 @@ struct Store: Codable, Identifiable, Hashable, Sendable {
         case id, name, address, phone, status, notes, introduction
         case managerId = "manager_id"
         case imageUrl = "image_url"
+        case recommendedHotel = "recommended_hotel"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -81,7 +85,8 @@ struct StoreInsert: Codable, Sendable {
     let imageUrl: String?
     let notes: String?
     let introduction: String?
-    
+    let recommendedHotel: String?
+
     init(
         name: String,
         address: String? = nil,
@@ -90,7 +95,8 @@ struct StoreInsert: Codable, Sendable {
         managerId: UUID? = nil,
         imageUrl: String? = nil,
         notes: String? = nil,
-        introduction: String? = nil
+        introduction: String? = nil,
+        recommendedHotel: String? = nil
     ) {
         self.name = name
         self.address = address
@@ -100,11 +106,13 @@ struct StoreInsert: Codable, Sendable {
         self.imageUrl = imageUrl
         self.notes = notes
         self.introduction = introduction
+        self.recommendedHotel = recommendedHotel
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case name, address, phone, status, notes, introduction
         case managerId = "manager_id"
         case imageUrl = "image_url"
+        case recommendedHotel = "recommended_hotel"
     }
 }
