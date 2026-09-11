@@ -7,8 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+	C4DC3F25675A433EA1CBE62E /* OperationApproval.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96CFA08100194631A24F646C /* OperationApproval.swift */; };
+	F0495DE1A3C7431FA4C1BFB2 /* OperationApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3060528E4C54735927E29D7 /* OperationApprovalView.swift */; };
+		E5F678901234567890123456 /* LoginLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6789012345678901234 /* LoginLogView.swift */; };
+
+		B2C3D4E5F678901234567890 /* LoginLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F67890123456789012 /* LoginLog.swift */; };
+
 		67DA245A462645EC867EF1EA336E2FEF /* TransactionEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD101DB5874C43C183C2485BD8D5C282 /* TransactionEditSheet.swift */; };
 		07C68C0DCBA440CEA6971A97 /* DashboardDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84D6EE3F80D24B22B8629C53 /* DashboardDetailViews.swift */; };
+		0494D6EB0A4A4C8C81D41F39C34C0032 /* StoreRebateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE290786DFA4E80955FF74CA964119C /* StoreRebateView.swift */; };
 		0C0B66FF3E0442A8E6FACA8D /* CustomerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084CA9FBBF8416A1834CF65A /* CustomerListView.swift */; };
 		2B3D3315832C4A6AF4D389D7 /* AdminApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCCE7F138FA9979D56CF158B /* AdminApprovalView.swift */; };
 		471D5541205E2A7FF94E8347 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03F7C2D9F9A01AD1C018D9E7 /* SettingsView.swift */; };
@@ -48,9 +55,16 @@
 		F46C933DD9EE43F5A158275B /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCDE386AA77F4F0C9F31ED37 /* APIClient.swift */; };
 		F4DD65A8467996837D538B94 /* COSCredentials.plist in Resources */ = {isa = PBXBuildFile; fileRef = 1991998F7B80AEB3EDE66C85 /* COSCredentials.plist */; };
 		FAFA984BCF21226D4BCD39D0 /* DeletionRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCF09B6D7436F65B7618873 /* DeletionRequest.swift */; };
+		94B506DF805B4021BD364A5065A1AD0E /* UserApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82F0087673D2462D891D4BD52B21B25E /* UserApprovalView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+	96CFA08100194631A24F646C /* OperationApproval.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationApproval.swift; sourceTree = "<group>"; };
+	A3060528E4C54735927E29D7 /* OperationApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationApprovalView.swift; sourceTree = "<group>"; };
+		C3D4E5F67890123456789012 /* LoginLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginLog.swift; sourceTree = "<group>"; };
+
+		D4E5F6789012345678901234 /* LoginLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginLogView.swift; sourceTree = "<group>"; };
+
 		CD101DB5874C43C183C2485BD8D5C282 /* TransactionEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditSheet.swift; sourceTree = "<group>"; };
 		03F7C2D9F9A01AD1C018D9E7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		07BB3C08D0A65572AA656B5F /* StoreListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreListView.swift; sourceTree = "<group>"; };
@@ -70,6 +84,7 @@
 		6CFA927B09B0BC258D65BACB /* ServiceRecordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceRecordDetailView.swift; sourceTree = "<group>"; };
 		740C45D1D12017B9D8B52D0F /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		84D6EE3F80D24B22B8629C53 /* DashboardDetailViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDetailViews.swift; sourceTree = "<group>"; };
+		CFE290786DFA4E80955FF74CA964119C /* StoreRebateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreRebateView.swift; sourceTree = "<group>"; };
 		8A3D6F7E2C4B4810A5E9B123 /* CustomerPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerPickerView.swift; sourceTree = "<group>"; };
 		9031C2C7601BA9FFA1D4DD6D /* CommonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonViews.swift; sourceTree = "<group>"; };
 		97D83643D54CEBFE28A176D9 /* SearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBar.swift; sourceTree = "<group>"; };
@@ -94,6 +109,7 @@
 		E69B3D9EC2FC46109B556F52 /* Charts.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Charts.framework; path = System/Library/Frameworks/Charts.framework; sourceTree = SDKROOT; };
 		F3A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5 /* PackageEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PackageEditView.swift; sourceTree = "<group>"; };
 		FCCE7F138FA9979D56CF158B /* AdminApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminApprovalView.swift; sourceTree = "<group>"; };
+		82F0087673D2462D891D4BD52B21B25E /* UserApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserApprovalView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +134,8 @@
 				2EC723590F5718C6D070D7E6 /* Store.swift */,
 				BFFA9DDD6D60F56699730A8C /* Transaction.swift */,
 				D21E14877CD495A5A6A3E875 /* User.swift */,
+				C3D4E5F67890123456789012 /* LoginLog.swift */,
+				96CFA08100194631A24F646C /* OperationApproval.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -189,6 +207,7 @@
 				A368B9236BD9091A143C9EB4 /* DeleteRequestSheet.swift */,
 				5A62B210BCE4A1DD835602EA /* HomeView.swift */,
 				84D6EE3F80D24B22B8629C53 /* DashboardDetailViews.swift */,
+				CFE290786DFA4E80955FF74CA964119C /* StoreRebateView.swift */,
 				F3A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5 /* PackageEditView.swift */,
 				8A3D6F7E2C4B4810A5E9B123 /* CustomerPickerView.swift */,
 				11AAC25D33255828D4BFD1FA /* MainTabView.swift */,
@@ -202,6 +221,9 @@
 
 				CD101DB5874C43C183C2485BD8D5C282 /* TransactionEditSheet.swift */,
 				E605FC00303C229200C2CCF4 /* UserManagementView.swift */,
+				D4E5F6789012345678901234 /* LoginLogView.swift */ ,
+				82F0087673D2462D891D4BD52B21B25E /* UserApprovalView.swift */,
+				A3060528E4C54735927E29D7 /* OperationApprovalView.swift */,
 				24C69AE2885CA8DDCFEC1F5A /* Common */,
 			);
 			path = Views;
@@ -310,10 +332,12 @@
 				0C0B66FF3E0442A8E6FACA8D /* CustomerListView.swift in Sources */,
 				75527761001EF79F4A595CCB /* DeleteRequestSheet.swift in Sources */,
 				E605FC01303C229200C2CCF4 /* UserManagementView.swift in Sources */,
+				94B506DF805B4021BD364A5065A1AD0E /* UserApprovalView.swift in Sources */,
 				FAFA984BCF21226D4BCD39D0 /* DeletionRequest.swift in Sources */,
 				BCCE58F0608998BE83E4EF3E /* FilterBar.swift in Sources */,
 				DA839C5E44EF7BC7679FC2A4 /* HomeView.swift in Sources */,
 				07C68C0DCBA440CEA6971A97 /* DashboardDetailViews.swift in Sources */,
+				0494D6EB0A4A4C8C81D41F39C34C0032 /* StoreRebateView.swift in Sources */,
 				A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6 /* PackageEditView.swift in Sources */,
 				9B4E8C1A3F5D4826B7A0C456 /* CustomerPickerView.swift in Sources */,
 				EF71216627BC7BF2C75184FA /* MainTabView.swift in Sources */,
@@ -335,6 +359,10 @@
 				72E80885FE83A3C1B4259C50 /* TransactionListView.swift in Sources */,
 				67DA245A462645EC867EF1EA336E2FEF /* TransactionEditSheet.swift in Sources */,
 				DF7CD4DAFF23A312C150A024 /* User.swift in Sources */,
+				B2C3D4E5F678901234567890 /* LoginLog.swift in Sources */,
+				E5F678901234567890123456 /* LoginLogView.swift in Sources */,
+				C4DC3F25675A433EA1CBE62E /* OperationApproval.swift in Sources */,
+				F0495DE1A3C7431FA4C1BFB2 /* OperationApprovalView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

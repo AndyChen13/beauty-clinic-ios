@@ -142,6 +142,8 @@ struct TodayTransactionsView: View {
 struct MonthlyRevenueTrendView: View {
     let transactions: [Transaction]
     
+    @State private var selectedDate: Date?
+    
     private var calendar: Calendar { Calendar.current }
     private var now: Date { Date() }
     private var startOfMonth: Date {
@@ -156,6 +158,7 @@ struct MonthlyRevenueTrendView: View {
         let day: Int
         let date: Date
         let revenue: Double
+        let storeBreakdown: [(storeName: String, amount: Double)]
     }
     
     var dailyRevenues: [DailyRevenue] {
@@ -166,15 +169,22 @@ struct MonthlyRevenueTrendView: View {
             let date = calendar.date(from: dayComponents)!
             let start = calendar.startOfDay(for: date)
             let end = calendar.date(byAdding: .day, value: 1, to: start)!
-            let revenue = monthTransactions
-                .filter { $0.transactionDate >= start && $0.transactionDate < end }
-                .reduce(0) { $0 + $1.amount }
-            return DailyRevenue(day: day, date: date, revenue: revenue)
+            let dayTransactions = monthTransactions.filter { $0.transactionDate >= start && $0.transactionDate < end }
+            let revenue = dayTransactions.reduce(0) { $0 + $1.amount }
+            let storeBreakdown = Dictionary(grouping: dayTransactions, by: { $0.storeName ?? "未知门店" })
+                .map { (storeName: $0.key, amount: $0.value.reduce(0) { $0 + $1.amount }) }
+                .sorted { $0.amount > $1.amount }
+            return DailyRevenue(day: day, date: date, revenue: revenue, storeBreakdown: storeBreakdown)
         }
     }
     
     var monthlyTotal: Double {
         dailyRevenues.reduce(0) { $0 + $1.revenue }
+    }
+    
+    var selectedDayData: DailyRevenue? {
+        guard let selectedDate else { return nil }
+        return dailyRevenues.first { calendar.isDate($0.date, inSameDayAs: selectedDate) }
     }
     
     var body: some View {
@@ -195,10 +205,22 @@ struct MonthlyRevenueTrendView: View {
                             x: .value("日期", item.date, unit: .day),
                             y: .value("收入", item.revenue)
                         )
-                        .foregroundStyle(Color.accentColor.gradient)
+                        .foregroundStyle(
+                            selectedDate != nil && calendar.isDate(item.date, inSameDayAs: selectedDate!)
+                            ? Color.accentColor
+                            : Color.accentColor.opacity(0.6)
+                        )
                         .cornerRadius(4)
                     }
-                    .frame(height: 220)
+                    .frame(height: 240)
+                    .chartXSelection(value: Binding(
+                        get: { selectedDate },
+                        set: { newValue in
+                            if let newValue {
+                                selectedDate = newValue
+                            }
+                        }
+                    ))
                     .chartXAxis {
                         AxisMarks(values: .stride(by: .day, count: 5)) { value in
                             AxisGridLine()
@@ -215,6 +237,35 @@ struct MonthlyRevenueTrendView: View {
                                 }
                             }
                         }
+                    }
+                    
+                    if let selected = selectedDayData {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text(selected.date.formatted(.dateTime.month().day()))
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text("¥\(Int(selected.revenue))")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            
+                            Divider()
+                            
+                            ForEach(selected.storeBreakdown, id: \.storeName) { item in
+                                HStack {
+                                    Text(item.storeName)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("¥\(Int(item.amount))")
+                                        .font(.caption.weight(.semibold))
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(UIColor.tertiarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                 }
                 .padding()
@@ -244,6 +295,7 @@ struct MonthlyRevenueTrendView: View {
 // MARK: - Pending Deliveries
 struct PendingDeliveriesView: View {
     let transactions: [Transaction]
+    let onReload: () async -> Void
     
     var groupedByCustomer: [(name: String, count: Int, sessions: Int)] {
         let dict = Dictionary(grouping: transactions, by: { $0.customerId })
@@ -296,6 +348,7 @@ struct PendingDeliveriesView: View {
         }
         .navigationTitle("待交付")
         .navigationBarTitleDisplayMode(.large)
+        .refreshable { await onReload() }
     }
 }
 
@@ -1210,13 +1263,11 @@ struct TrainingMaterialsView: View {
     @State private var showUploadSheet = false
     
     private var canUpload: Bool {
-        guard let role = userState.currentUser?.role else { return false }
-        return role == .admin || role == .superAdmin
+        userState.currentUser?.role == .superAdmin
     }
     
     private var canManage: Bool {
-        guard let role = userState.currentUser?.role else { return false }
-        return role == .admin || role == .superAdmin
+        userState.currentUser?.role == .superAdmin
     }
     
     var body: some View {
@@ -2120,6 +2171,143 @@ final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate {
             continuation?.resume(throwing: error)
             continuation = nil
         }
+    }
+}
+
+// MARK: - Store Rebates
+struct StoreRebatesView: View {
+    @EnvironmentObject var userState: UserState
+    let stores: [Store]
+    
+    @State private var histories: [UUID: [StoreRebatePeriod]] = [:]
+    @State private var activePeriods: [UUID: StoreRebatePeriod] = [:]
+    @State private var isLoading = false
+    
+    var allHistories: [StoreRebatePeriod] {
+        histories.values.flatMap { $0 }
+    }
+    
+    var monthlyTotal: Double {
+        allHistories
+            .filter { $0.status == "confirmed" && ($0.confirmedAt?.isInCurrentMonth ?? false) }
+            .reduce(0) { $0 + ($1.confirmedRebate ?? 0) }
+    }
+    
+    var monthlyCount: Int {
+        allHistories
+            .filter { $0.status == "confirmed" && ($0.confirmedAt?.isInCurrentMonth ?? false) }
+            .count
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                SummaryCard(
+                    title: "门店返利",
+                    value: "¥\(Int(monthlyTotal))",
+                    subtitle: "本月已确认 \(monthlyCount) 笔"
+                )
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("门店返利汇总")
+                        .font(.headline)
+                    
+                    if isLoading && histories.isEmpty {
+                        ForEach(0..<3) { _ in
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(UIColor.tertiarySystemBackground))
+                                .frame(height: 64)
+                                .shimmering()
+                        }
+                    } else if stores.isEmpty {
+                        EmptyStateView(icon: "building.2", title: "暂无门店", subtitle: "请先创建门店")
+                    } else {
+                        ForEach(stores) { store in
+                            let active = activePeriods[store.id]
+                            let history = histories[store.id] ?? []
+                            NavigationLink {
+                                StoreRebateView(store: store)
+                                    .environmentObject(userState)
+                            } label: {
+                                StoreRebateOverviewRow(store: store, active: active, history: history)
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .padding()
+        }
+        .navigationTitle("门店返利")
+        .navigationBarTitleDisplayMode(.large)
+        .task { await loadData() }
+    }
+    
+    private func loadData() async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+        
+        for store in stores {
+            do {
+                async let activeTask = StoreRebateService.shared.getActiveRebate(storeId: store.id.uuidString)
+                async let historyTask = StoreRebateService.shared.getRebateHistory(storeId: store.id.uuidString)
+                let (active, history) = try await (activeTask, historyTask)
+                await MainActor.run {
+                    if let active = active {
+                        activePeriods[store.id] = active
+                    }
+                    histories[store.id] = history
+                }
+            } catch {
+                print("[StoreRebates] load store \(store.id) error: \(error)")
+            }
+        }
+    }
+}
+
+struct StoreRebateOverviewRow: View {
+    let store: Store
+    let active: StoreRebatePeriod?
+    let history: [StoreRebatePeriod]
+    
+    private var confirmedTotal: Double {
+        history
+            .filter { $0.status == "confirmed" }
+            .reduce(0) { $0 + ($1.confirmedRebate ?? 0) }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(store.name)
+                    .font(.subheadline.weight(.medium))
+                Text(active != nil ? "进行中周期" : "无进行中周期")
+                    .font(.caption)
+                    .foregroundStyle(active != nil ? .green : .secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("历史已确认 ¥\(Int(confirmedTotal))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let active = active, let computed = active.autoRebate {
+                    Text("当前汇算 ¥\(Int(computed))")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding()
+        .background(Color(UIColor.tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

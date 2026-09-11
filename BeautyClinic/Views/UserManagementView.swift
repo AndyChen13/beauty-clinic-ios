@@ -11,6 +11,7 @@ class UserService {
         let phone: String?
         let name: String
         let role: String
+        let status: String?
         let storeId: String?
         let avatarUrl: String?
         let createdAt: String?
@@ -38,7 +39,8 @@ class UserService {
             email: r.email,
             phone: r.phone,
             name: r.name,
-            role: UserRole(rawValue: r.role) ?? .storeUser,
+            role: UserRole(rawValue: r.role) ?? .staff,
+            status: UserStatus(rawValue: r.status ?? "approved") ?? .approved,
             storeId: r.storeId.flatMap { UUID(uuidString: $0) },
             avatarUrl: r.avatarUrl,
             createdAt: parseISO8601Date(r.createdAt),
@@ -331,7 +333,7 @@ struct CreateUserSheet: View {
     @Environment(\.dismiss) var dismiss
     @State private var phone = ""
     @State private var name = ""
-    @State private var selectedRole: UserRole = .storeUser
+    @State private var selectedRole: UserRole = .staff
     @State private var password = ""
     
     let onCreate: (String, String, UserRole, String) async -> Void

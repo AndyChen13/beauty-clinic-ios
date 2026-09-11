@@ -164,8 +164,18 @@ struct TransactionMiniRow: View {
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(displayTitle)
-                    .font(.subheadline.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(displayTitle)
+                        .font(.subheadline.weight(.medium))
+                    Text(transaction.branch.displayName)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(transaction.branch.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(transaction.branch.color.opacity(0.12))
+                        .clipShape(Capsule())
+                    Spacer(minLength: 0)
+                }
                 Text(transaction.transactionDate.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -187,19 +197,19 @@ struct TransactionMiniRow: View {
                     .background(transaction.status.color.opacity(0.15))
                     .foregroundColor(transaction.status.color)
                     .clipShape(Capsule())
-                if let onPay = onPay, (transaction.outstandingAmount ?? 0) > 0 {
-                    Button("收款") {
-                        onPay()
-                    }
-                    .font(.caption2)
-                    .foregroundColor(.green)
-                }
-                if userState.isAdmin, let onEdit = onEdit, !isPaymentLike {
-                    Button("修改") {
+                if userState.currentUser != nil, let onEdit = onEdit {
+                    Button {
                         onEdit()
+                    } label: {
+                        Text("修改")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundColor(.blue)
+                            .clipShape(Capsule())
                     }
-                    .font(.caption2)
-                    .foregroundColor(.blue)
+                    .buttonStyle(.plain)
                 }
             }
         }

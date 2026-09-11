@@ -381,6 +381,7 @@ class TransactionService {
         let staffUserId: String?
         let amount: Double
         let amountReceived: Double?
+        let storeRebateAmount: Double?
         let outstandingAmount: Double?
         let totalSessions: Int
         let completedSessions: Int
@@ -395,6 +396,7 @@ class TransactionService {
         let TransactionAuditLog: [AuditLogResponse]?
         let createdAt: String?
         let updatedAt: String?
+        let branch: String?
         let customer: NameBrief?
         let store: NameBrief?
         let package: NameBrief?
@@ -436,6 +438,7 @@ class TransactionService {
             staffUserId: r.staffUserId.flatMap { UUID(uuidString: $0) },
             amount: r.amount,
             amountReceived: r.amountReceived,
+            storeRebateAmount: r.storeRebateAmount,
             outstandingAmount: r.outstandingAmount,
             totalSessions: r.totalSessions,
             completedSessions: r.completedSessions,
@@ -449,7 +452,8 @@ class TransactionService {
             modifiedByName: r.modifiedByName,
             auditLogs: logs,
             createdAt: parseISO8601Date(r.createdAt),
-            updatedAt: parseISO8601Date(r.updatedAt)
+            updatedAt: parseISO8601Date(r.updatedAt),
+            branch: TransactionBranch(rawValue: r.branch ?? "光电") ?? .photoElectric
         )
         t.customerName = r.customer?.name
         t.storeName = r.store?.name
@@ -474,9 +478,49 @@ class TransactionService {
     }
     
     func updateTransaction(id: String, data: TransactionUpdate) async throws -> Transaction {
-        let r: TransactionResponse = try await APIClient.shared.put(path: "/api/transactions/\(id)", body: data)
+        let responseData = try await APIClient.shared.dataRequest(path: "/api/transactions/\(id)", method: "PUT", body: data)
+        return try decodeTransactionResponse(responseData)
+    }
+
+    func deleteTransaction(id: String) async throws {
+        let responseData = try await APIClient.shared.dataRequest(path: "/api/transactions/\(id)", method: "DELETE")
+        _ = try decodeDeleteResponse(responseData)
+    }
+
+    private func decodeTransactionResponse(_ data: Data) throws -> Transaction {
+        let decoder = makeDecoder()
+        if let approval = try? decoder.decode(OperationApprovalResponse.self, from: data), approval.requiresApproval == true {
+            throw APIError.pendingApproval(approval.message ?? "已提交审批，等待超级管理员审核")
+        }
+        let r = try decoder.decode(TransactionResponse.self, from: data)
         return mapToTransaction(r)
     }
+
+    private func decodeDeleteResponse(_ data: Data) throws -> DeleteTransactionResponse {
+        let decoder = makeDecoder()
+        if let approval = try? decoder.decode(OperationApprovalResponse.self, from: data), approval.requiresApproval == true {
+            throw APIError.pendingApproval(approval.message ?? "已提交审批，等待超级管理员审核")
+        }
+        return try decoder.decode(DeleteTransactionResponse.self, from: data)
+    }
+
+    private func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }
+}
+
+struct OperationApprovalResponse: Codable {
+    let success: Bool
+    let message: String?
+    let requiresApproval: Bool?
+}
+
+struct DeleteTransactionResponse: Codable {
+    let success: Bool
+    let message: String?
 }
 
 // MARK: - Delivery Service
@@ -646,9 +690,11 @@ class ServiceRecordService {
         let photos: [String]?
         let customerFeedback: String?
         let extraPayment: Double
+        let rebateAmount: Double
         let extraPaymentNote: String?
         let sessionsUsed: Int
         let remainingSessions: Int?
+        let branch: String?
         let createdAt: String?
     }
     
@@ -666,9 +712,11 @@ class ServiceRecordService {
             photos: r.photos,
             customerFeedback: r.customerFeedback,
             extraPayment: r.extraPayment,
+            rebateAmount: r.rebateAmount,
             extraPaymentNote: r.extraPaymentNote,
             sessionsUsed: r.sessionsUsed,
             remainingSessions: r.remainingSessions,
+            branch: r.branch ?? "光电",
             createdAt: parseISO8601Date(r.createdAt)
         )
     }
@@ -688,16 +736,42 @@ class ServiceRecordService {
     }
     
     func updateRecord(id: UUID, _ update: ServiceRecordUpdate) async throws -> ServiceRecord {
-        let r: RecordResponse = try await APIClient.shared.put(path: "/api/service-records/\(id.uuidString)", body: update)
-        return mapToRecord(r)
+        let responseData = try await APIClient.shared.dataRequest(path: "/api/service-records/\(id.uuidString)", method: "PUT", body: update)
+        return try decodeRecordResponse(responseData)
     }
 
     func deleteRecord(id: UUID) async throws {
-        struct DeleteResponse: Codable {
-            let success: Bool
-        }
-        let _: DeleteResponse = try await APIClient.shared.delete(path: "/api/service-records/\(id.uuidString)")
+        let responseData = try await APIClient.shared.dataRequest(path: "/api/service-records/\(id.uuidString)", method: "DELETE")
+        _ = try decodeDeleteResponse(responseData)
     }
+
+    private func decodeRecordResponse(_ data: Data) throws -> ServiceRecord {
+        let decoder = makeDecoder()
+        if let approval = try? decoder.decode(OperationApprovalResponse.self, from: data), approval.requiresApproval == true {
+            throw APIError.pendingApproval(approval.message ?? "已提交审批，等待超级管理员审核")
+        }
+        let r = try decoder.decode(RecordResponse.self, from: data)
+        return mapToRecord(r)
+    }
+
+    private func decodeDeleteResponse(_ data: Data) throws -> ServiceRecordDeleteResponse {
+        let decoder = makeDecoder()
+        if let approval = try? decoder.decode(OperationApprovalResponse.self, from: data), approval.requiresApproval == true {
+            throw APIError.pendingApproval(approval.message ?? "已提交审批，等待超级管理员审核")
+        }
+        return try decoder.decode(ServiceRecordDeleteResponse.self, from: data)
+    }
+
+    private func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }
+}
+
+struct ServiceRecordDeleteResponse: Codable {
+    let success: Bool
 }
 
 // MARK: - Deletion Request Service
@@ -860,5 +934,89 @@ class TrainingMaterialService {
             let success: Bool
         }
         let _: DeleteResponse = try await APIClient.shared.delete(path: "/api/training-materials/\(id.uuidString)")
+    }
+}
+
+// MARK: - Dashboard Service
+@MainActor
+class DashboardService {
+    static let shared = DashboardService()
+    private init() {}
+
+    struct DashboardSummaryResponse: Codable {
+        struct BranchStats: Codable {
+            let amount: Double
+            let received: Double
+            let outstanding: Double
+            let count: Int
+        }
+        struct TodayMonth: Codable {
+            let photoElectric: BranchStats
+            let medicalBeauty: BranchStats
+            let rebate: Double
+        }
+        struct TopStore: Codable {
+            let storeId: String
+            let name: String
+            let amount: Double
+        }
+        struct TopCustomer: Codable {
+            let customerId: String
+            let name: String
+            let amount: Double
+        }
+        let today: TodayMonth
+        let month: TodayMonth
+        let pendingCount: Int
+        let customerCount: Int
+        let topStores: [TopStore]
+        let topCustomers: [TopCustomer]
+    }
+
+    func fetchSummary() async throws -> DashboardSummaryResponse {
+        try await APIClient.shared.get(path: "/api/dashboard/summary")
+    }
+}
+
+// MARK: - Store Rebate Service
+@MainActor
+class StoreRebateService {
+    static let shared = StoreRebateService()
+    private init() {}
+
+    private func base(_ storeId: String) -> String { "/api/stores/\(storeId)/rebate" }
+
+    func getActiveRebate(storeId: String) async throws -> StoreRebatePeriod? {
+        do {
+            let period: StoreRebatePeriod = try await APIClient.shared.get(path: base(storeId) + "/active")
+            return period
+        } catch APIError.serverError(let code, _) where code == 404 {
+            return nil
+        } catch {
+            throw error
+        }
+    }
+
+    func createRebate(storeId: String, insert: StoreRebatePeriodInsert) async throws -> StoreRebatePeriod {
+        try await APIClient.shared.post(path: base(storeId), body: insert)
+    }
+
+    func closeRebate(storeId: String, manualRebate: Double?) async throws -> StoreRebatePeriod {
+        struct Body: Codable { let manualRebate: Double? }
+        return try await APIClient.shared.post(path: base(storeId) + "/close", body: Body(manualRebate: manualRebate))
+    }
+
+    func getRebateHistory(storeId: String) async throws -> [StoreRebatePeriod] {
+        try await APIClient.shared.get(path: base(storeId) + "/history")
+    }
+
+    func updateHistoricalRebate(storeId: String, rebateId: String, confirmedRebate: Double) async throws -> StoreRebatePeriod {
+        struct Body: Codable { let confirmedRebate: Double }
+        return try await APIClient.shared.put(path: base(storeId) + "/history/\(rebateId)", body: Body(confirmedRebate: confirmedRebate))
+    }
+
+    func deleteHistoricalRebate(storeId: String, rebateId: String) async throws {
+        struct Response: Codable { let success: Bool }
+        let _: Response = try await APIClient.shared.delete(path: base(storeId) + "/history/\(rebateId)")
     }
 }

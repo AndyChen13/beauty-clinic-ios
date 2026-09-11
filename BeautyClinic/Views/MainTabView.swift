@@ -2,8 +2,10 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject var userState: UserState
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
-    
+    @State private var showPendingAlert = false
+
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView()
@@ -63,6 +65,34 @@ struct MainTabView: View {
             }
         }
         .environmentObject(userState)
+        .onAppear {
+            Task {
+                await userState.checkPendingApprovals()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task {
+                    await userState.checkPendingApprovals()
+                }
+            }
+        }
+        .onChange(of: userState.pendingUserCount) { _, newValue in
+            if newValue > 0 {
+                showPendingAlert = true
+            }
+        }
+        .alert("新用户注册待审批", isPresented: $showPendingAlert) {
+            Button("去审批") {
+                selectedTab = userState.currentUser?.isSuperAdmin == true ? 7 : 6
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    // 设置页面内再导航到 UserApprovalView 由用户手动操作
+                }
+            }
+            Button("稍后", role: .cancel) { }
+        } message: {
+            Text("有 \(userState.pendingUserCount) 位新注册用户等待超级管理员审批")
+        }
     }
 }
 

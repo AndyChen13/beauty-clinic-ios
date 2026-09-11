@@ -6,6 +6,7 @@ struct StoreDetailView: View {
     let users: [User]
     @EnvironmentObject var userState: UserState
     @State private var showingEditSheet = false
+    @State private var showingRebateSheet = false
     
     private var managerName: String {
         if let managerId = store.managerId,
@@ -144,6 +145,11 @@ struct StoreDetailView: View {
         .toolbar {
             if userState.isAdmin {
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("返利") {
+                        showingRebateSheet = true
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("编辑") {
                         showingEditSheet = true
                     }
@@ -155,6 +161,12 @@ struct StoreDetailView: View {
                 store = updatedStore
             }
             .environmentObject(userState)
+        }
+        .sheet(isPresented: $showingRebateSheet) {
+            NavigationStack {
+                StoreRebateView(store: store)
+                    .environmentObject(userState)
+            }
         }
     }
 }

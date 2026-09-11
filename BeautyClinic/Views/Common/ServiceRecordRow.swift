@@ -10,6 +10,15 @@ struct ServiceRecordRow: View {
                 Text(record.serviceDate.formatted(date: .abbreviated, time: .shortened))
                     .font(.subheadline.weight(.medium))
                 Spacer()
+                if let branch = TransactionBranch(rawValue: record.branch) {
+                    Text(branch.displayName)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(branch.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(branch.color.opacity(0.12))
+                        .clipShape(Capsule())
+                }
                 if record.extraPayment > 0 {
                     Text("+¥\(String(format: "%.0f", record.extraPayment))")
                         .font(.caption.weight(.semibold))

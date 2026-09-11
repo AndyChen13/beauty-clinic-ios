@@ -130,6 +130,7 @@ struct StoreListView: View {
                 let email: String?
                 let name: String
                 let role: String
+                let status: String?
                 let storeId: String?
                 let avatarUrl: String?
             }
@@ -141,6 +142,7 @@ struct StoreListView: View {
                     phone: r.phone,
                     name: r.name,
                     role: UserRole(rawValue: r.role) ?? .staff,
+                    status: UserStatus(rawValue: r.status ?? "approved") ?? .approved,
                     storeId: r.storeId.flatMap { UUID(uuidString: $0) },
                     avatarUrl: r.avatarUrl,
                     createdAt: nil,

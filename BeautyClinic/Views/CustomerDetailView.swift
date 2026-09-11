@@ -5,8 +5,29 @@ extension URL: Identifiable {
     public var id: String { absoluteString }
 }
 
+private enum CustomerDetailSheet: Identifiable {
+    case edit
+    case serviceRecord
+    case refund
+    case payment(transaction: Transaction?)
+    case transactionEdit(Transaction)
+    case recordDetail(ServiceRecord)
+
+    var id: String {
+        switch self {
+        case .edit: return "edit"
+        case .serviceRecord: return "serviceRecord"
+        case .refund: return "refund"
+        case .payment(let t): return "payment-\(t?.id.uuidString ?? "new")"
+        case .transactionEdit(let t): return "transactionEdit-\(t.id.uuidString)-\(t.notes ?? "")"
+        case .recordDetail(let r): return "recordDetail-\(r.id.uuidString)"
+        }
+    }
+}
+
 struct CustomerDetailView: View {
     @EnvironmentObject var userState: UserState
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State var customer: Customer
     let stores: [Store]
     @State private var transactions: [Transaction] = []
@@ -17,13 +38,7 @@ struct CustomerDetailView: View {
     }
     @State private var serviceRecords: [ServiceRecord] = []
     @State private var isLoading = false
-    @State private var isEditing = false
-    @State private var showingServiceSheet = false
-    @State private var showingRefundSheet = false
-    @State private var showingPaymentSheet = false
-    @State private var selectedTransactionForPayment: Transaction?
-    @State private var selectedTransactionForEdit: Transaction?
-    @State private var selectedRecord: ServiceRecord?
+    @State private var activeSheet: CustomerDetailSheet?
     @State private var fullPhotoURL: URL?
     
     private var storeName: String {
@@ -105,88 +120,109 @@ struct CustomerDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 16) {
                     Button {
-                        showingServiceSheet = true
+                        activeSheet = .serviceRecord
                     } label: {
                         Image(systemName: "plus.circle")
                     }
-                    Button("编辑") { isEditing = true }
+                    Button("编辑") { activeSheet = .edit }
                 }
             }
         }
-        .sheet(isPresented: $isEditing) {
-            CustomerEditView(mode: .edit(customer), stores: stores) { updated in
-                customer = updated
-                Task {
-                    await loadTransactions()
-                    await loadCustomer()
-                    await loadServiceRecords()
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .edit:
+                CustomerEditView(mode: .edit(customer), stores: stores) { updated in
+                    activeSheet = nil
+                    customer = updated
+                    Task {
+                        await loadTransactions()
+                        await loadCustomer()
+                        await loadServiceRecords()
+                    }
+                }
+            case .serviceRecord:
+                ServiceRecordEditView(
+                    record: nil,
+                    customer: customer,
+                    transactions: transactions
+                ) { _ in
+                    activeSheet = nil
+                    Task {
+                        await loadServiceRecords()
+                        await loadTransactions()
+                        await loadCustomer()
+                    }
+                }
+            case .refund:
+                AddRefundSheet(
+                    customer: customer,
+                    transactions: transactions,
+                    onSave: {
+                        Task {
+                            await loadTransactions()
+                            await loadCustomer()
+                        }
+                    },
+                    onCancel: { activeSheet = nil }
+                )
+            case .payment(let transaction):
+                AddPaymentSheet(
+                    customer: customer,
+                    transactions: transactions,
+                    transaction: transaction,
+                    onSave: {
+                        Task {
+                            await loadTransactions()
+                            await loadCustomer()
+                        }
+                    },
+                    onCancel: { activeSheet = nil }
+                )
+            case .transactionEdit(let transaction):
+                TransactionEditSheet(
+                    transaction: transaction,
+                    onUpdated: {
+                        activeSheet = nil
+                        Task {
+                            await loadTransactions()
+                            await loadCustomer()
+                        }
+                    },
+                    onDeleted: {
+                        activeSheet = nil
+                        Task {
+                            await loadTransactions()
+                            await loadCustomer()
+                        }
+                    }
+                )
+            case .recordDetail(let record):
+                NavigationStack {
+                    ServiceRecordDetailView(
+                        record: record,
+                        customer: customer,
+                        transactions: transactions,
+                        onDelete: {
+                            activeSheet = nil
+                            Task {
+                                await loadCustomer()
+                                await loadServiceRecords()
+                            }
+                        },
+                        onSave: {
+                            activeSheet = nil
+                            Task {
+                                await loadCustomer()
+                                await loadServiceRecords()
+                                await loadTransactions()
+                            }
+                        }
+                    )
                 }
             }
         }
         .fullScreenCover(item: $fullPhotoURL) { url in
             FullPhotoView(url: url)
-        }
-        .sheet(isPresented: $showingServiceSheet) {
-            ServiceRecordEditView(
-                record: nil,
-                customer: customer,
-                transactions: transactions
-            ) { _ in
-                Task {
-                    await loadServiceRecords()
-                    await loadTransactions()
-                    await loadCustomer()
-                }
-            }
-        }
-        .sheet(isPresented: $showingRefundSheet) {
-            AddRefundSheet(
-                customer: customer,
-                transactions: transactions,
-                onSave: {
-                    Task {
-                        await loadTransactions()
-                        await loadCustomer()
-                    }
-                },
-                onCancel: { showingRefundSheet = false }
-            )
-        }
-        .sheet(item: $selectedTransactionForPayment) { transaction in
-            AddPaymentSheet(
-                customer: customer,
-                transactions: transactions,
-                transaction: transaction,
-                onSave: {
-                    Task {
-                        await loadTransactions()
-                        await loadCustomer()
-                    }
-                },
-                onCancel: { selectedTransactionForPayment = nil }
-            )
-        }
-        .sheet(item: $selectedTransactionForEdit) { transaction in
-            TransactionEditSheet(transaction: transaction) {
-                Task {
-                    await loadTransactions()
-                    await loadCustomer()
-                }
-            }
-        }
-        .sheet(isPresented: $showingPaymentSheet) {
-            AddPaymentSheet(
-                customer: customer,
-                transactions: transactions,
-                transaction: nil,
-                onSave: {
-                    Task {
-                        await loadTransactions()
-                        await loadCustomer()
-                    }
-                },
-                onCancel: { showingPaymentSheet = false }
-            )
         }
         .task {
             await loadTransactions()
@@ -378,20 +414,38 @@ struct CustomerDetailView: View {
     
     private var transactionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            HStack(spacing: 8) {
                 Text("成交历史")
                     .font(.headline)
-                Spacer()
-                Button("新增退款") {
-                    showingRefundSheet = true
+                Spacer(minLength: 4)
+                HStack(spacing: horizontalSizeClass == .compact ? 6 : 10) {
+                    let paymentTitle = horizontalSizeClass == .compact ? "收款" : "新增收款"
+                    Button {
+                        activeSheet = .payment(transaction: nil)
+                    } label: {
+                        Label(paymentTitle, systemImage: "plus.circle.fill")
+                            .font(horizontalSizeClass == .compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                            .padding(.horizontal, horizontalSizeClass == .compact ? 8 : 12)
+                            .padding(.vertical, horizontalSizeClass == .compact ? 4 : 6)
+                            .background(Color.green.opacity(0.15))
+                            .foregroundColor(.green)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    let refundTitle = horizontalSizeClass == .compact ? "退款" : "新增退款"
+                    Button {
+                        activeSheet = .refund
+                    } label: {
+                        Label(refundTitle, systemImage: "minus.circle.fill")
+                            .font(horizontalSizeClass == .compact ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
+                            .padding(.horizontal, horizontalSizeClass == .compact ? 8 : 12)
+                            .padding(.vertical, horizontalSizeClass == .compact ? 4 : 6)
+                            .background(Color.red.opacity(0.15))
+                            .foregroundColor(.red)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .font(.caption.weight(.medium))
-                .foregroundColor(.red)
-                Button("新增收款") {
-                    showingPaymentSheet = true
-                }
-                .font(.caption.weight(.medium))
-                .foregroundColor(.green)
                 if isLoading {
                     ProgressView().scaleEffect(0.8)
                 }
@@ -406,9 +460,9 @@ struct CustomerDetailView: View {
             } else {
                 ForEach(transactions) { transaction in
                     TransactionMiniRow(transaction: transaction) {
-                        selectedTransactionForPayment = transaction
+                        activeSheet = .payment(transaction: transaction)
                     } onEdit: {
-                        selectedTransactionForEdit = transaction
+                        activeSheet = .transactionEdit(transaction)
                     }
                 }
             }
@@ -515,7 +569,7 @@ struct CustomerDetailView: View {
             } else {
                 ForEach(serviceRecords.prefix(5)) { record in
                     Button {
-                        selectedRecord = record
+                        activeSheet = .recordDetail(record)
                     } label: {
                         ServiceRecordRow(record: record)
                     }
@@ -533,28 +587,6 @@ struct CustomerDetailView: View {
         .padding()
         .background(Color(UIColor.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .sheet(item: $selectedRecord) { record in
-            NavigationStack {
-                ServiceRecordDetailView(
-                    record: record,
-                    customer: customer,
-                    transactions: transactions,
-                    onDelete: {
-                        Task {
-                            await loadCustomer()
-                            await loadServiceRecords()
-                        }
-                    },
-                    onSave: {
-                        Task {
-                            await loadCustomer()
-                            await loadServiceRecords()
-                            await loadTransactions()
-                        }
-                    }
-                )
-            }
-        }
     }
     
     private func loadTransactions() async {
@@ -589,9 +621,11 @@ struct CustomerDetailView: View {
                 let photos: [String]?
                 let customerFeedback: String?
                 let extraPayment: Double
+                let rebateAmount: Double
                 let extraPaymentNote: String?
                 let sessionsUsed: Int
                 let remainingSessions: Int?
+                let branch: String?
                 let createdAt: String?
             }
             let result: [RecordResponse] = try await APIClient.shared.get(
@@ -612,9 +646,11 @@ struct CustomerDetailView: View {
                     photos: r.photos,
                     customerFeedback: r.customerFeedback,
                     extraPayment: r.extraPayment,
+                    rebateAmount: r.rebateAmount,
                     extraPaymentNote: r.extraPaymentNote,
                     sessionsUsed: r.sessionsUsed,
                     remainingSessions: r.remainingSessions,
+                    branch: r.branch ?? "光电",
                     createdAt: nil
                 )
             }
@@ -761,6 +797,7 @@ struct AddRefundSheet: View {
                         preferences: refreshed.preferences,
                         associatedStoreId: refreshed.associatedStoreId,
                         photoUrl: refreshed.photoUrl,
+                        firstTransactionDate: refreshed.firstTransactionDate,
                         firstTransactionAmount: max(0, (refreshed.firstTransactionAmount ?? 0) - refundAmountValue),
                         amountReceived: max(0, (refreshed.amountReceived ?? 0) - refundAmountValue),
                         outstandingAmount: max(0, (refreshed.outstandingAmount ?? 0)),
@@ -926,6 +963,7 @@ struct AddPaymentSheet: View {
                         preferences: refreshed.preferences,
                         associatedStoreId: refreshed.associatedStoreId,
                         photoUrl: refreshed.photoUrl,
+                        firstTransactionDate: refreshed.firstTransactionDate,
                         firstTransactionAmount: refreshed.firstTransactionAmount,
                         amountReceived: (refreshed.amountReceived ?? 0) + paymentAmountValue,
                         outstandingAmount: max(0, (refreshed.outstandingAmount ?? 0) - paymentAmountValue),

@@ -1,9 +1,11 @@
 // Views/CustomerPickerView.swift
 import SwiftUI
 
-enum CustomerPickerMode {
+enum CustomerPickerMode: Identifiable {
     case recordTransaction
     case recordDelivery
+    
+    var id: CustomerPickerMode { self }
 }
 
 struct CustomerPickerView: View {
@@ -59,6 +61,15 @@ struct CustomerPickerView: View {
                 }
             }
             .listStyle(.plain)
+            .overlay {
+                if filteredCustomers.isEmpty {
+                    ContentUnavailableView {
+                        Label("暂无客户", systemImage: "person.2")
+                    } description: {
+                        Text("当前没有可选择的客户，请先返回首页添加或刷新客户列表。")
+                    }
+                }
+            }
             .searchable(
                 text: $searchTerm,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -71,18 +82,16 @@ struct CustomerPickerView: View {
                     Button("取消") { dismiss() }
                 }
             }
-            .sheet(item: $selectedCustomerForTransaction) { customer in
-                NavigationStack {
-                    TransactionRecordView(
-                        customers: customers,
-                        packages: packages,
-                        preselectedCustomerId: customer.id
-                    ) { _ in
+            .navigationDestination(item: $selectedCustomerForTransaction) { customer in
+                CustomerEditView(
+                    mode: .edit(customer, openAddDeal: true),
+                    stores: stores,
+                    onSave: { _ in
                         selectedCustomerForTransaction = nil
                         dismiss()
                         onComplete()
                     }
-                }
+                )
             }
         }
     }

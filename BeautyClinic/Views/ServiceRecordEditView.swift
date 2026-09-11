@@ -30,6 +30,9 @@ struct ServiceRecordEditView: View {
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showApprovalAlert = false
+    @State private var approvalMessage = ""
+    @State private var showDeleteConfirmation = false
     
     /// 可消耗的剩余品类；编辑时始终包含原关联品类
     private var availableTransactions: [Transaction] {
@@ -230,6 +233,21 @@ struct ServiceRecordEditView: View {
                         }
                     }
                 }
+
+                if isEditing {
+                    Section {
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text("删除该服务记录")
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle(isEditing ? "编辑服务记录" : "添加服务记录")
             .navigationBarTitleDisplayMode(.inline)
@@ -252,6 +270,19 @@ struct ServiceRecordEditView: View {
                 Button("确定", role: .cancel) {}
             } message: {
                 Text(errorMessage)
+            }
+            .alert("已提交审批请求", isPresented: $showApprovalAlert) {
+                Button("确定") { dismiss() }
+            } message: {
+                Text(approvalMessage)
+            }
+            .confirmationDialog("确认删除服务记录？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                Button("删除", role: .destructive) {
+                    Task { await deleteRecord() }
+                }
+                Button("取消", role: .cancel) { }
+            } message: {
+                Text("删除后无法恢复，关联的交付次数将被恢复。")
             }
             .onAppear {
                 loadExistingRecord()
@@ -311,9 +342,11 @@ struct ServiceRecordEditView: View {
                         photos: photoUrls,
                         customerFeedback: customerFeedback,
                         extraPayment: extraPaymentValue,
+                        rebateAmount: 0,
                         extraPaymentNote: extraPaymentNote,
                         sessionsUsed: sessionsUsedValue,
-                        remainingSessions: newRemaining >= 0 ? newRemaining : 0
+                        remainingSessions: newRemaining >= 0 ? newRemaining : 0,
+                        branch: record.branch
                     )
                     let updated = try await ServiceRecordService.shared.updateRecord(id: record.id, update)
                     onSave(updated)
@@ -324,6 +357,7 @@ struct ServiceRecordEditView: View {
                         isSaving = false
                         return
                     }
+                    let txBranch = availableTransactions.first(where: { $0.id == transactionId })?.branch.rawValue ?? "光电"
                     let recordInsert = ServiceRecordInsert(
                         customerId: customer.id,
                         transactionId: transactionId,
@@ -336,19 +370,42 @@ struct ServiceRecordEditView: View {
                         photos: photoUrls.isEmpty ? nil : photoUrls,
                         customerFeedback: customerFeedback.isEmpty ? nil : customerFeedback,
                         extraPayment: extraPaymentValue,
+                        rebateAmount: 0,
                         extraPaymentNote: extraPaymentNote.isEmpty ? nil : extraPaymentNote,
                         sessionsUsed: sessionsUsedValue,
-                        remainingSessions: newRemaining >= 0 ? newRemaining : 0
+                        remainingSessions: newRemaining >= 0 ? newRemaining : 0,
+                        branch: txBranch
                     )
                     let created = try await ServiceRecordService.shared.createRecord(recordInsert)
                     onSave(created)
                 }
                 dismiss()
             } catch {
+                if case APIError.pendingApproval(let msg) = error {
+                    approvalMessage = msg
+                    showApprovalAlert = true
+                } else {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            }
+            isSaving = false
+        }
+    }
+
+    private func deleteRecord() async {
+        guard let record = record else { return }
+        do {
+            try await ServiceRecordService.shared.deleteRecord(id: record.id)
+            dismiss()
+        } catch {
+            if case APIError.pendingApproval(let msg) = error {
+                approvalMessage = msg
+                showApprovalAlert = true
+            } else {
                 errorMessage = error.localizedDescription
                 showError = true
             }
-            isSaving = false
         }
     }
 }

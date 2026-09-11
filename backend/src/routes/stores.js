@@ -78,7 +78,7 @@ router.post('/', requireAdmin, [
   }
 
   try {
-    const { name, address, phone, status, imageUrl } = req.body;
+    const { name, address, phone, status, imageUrl, introduction, recommendedHotel } = req.body;
 
     const store = await prisma.store.create({
       data: {
@@ -87,6 +87,8 @@ router.post('/', requireAdmin, [
         phone,
         status: status || 'pending',
         imageUrl,
+        introduction,
+        recommendedHotel,
       },
     });
 
@@ -101,7 +103,7 @@ router.post('/', requireAdmin, [
 router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, address, phone, status, managerId, imageUrl } = req.body;
+    const { name, address, phone, status, managerId, imageUrl, introduction, recommendedHotel } = req.body;
 
     const store = await prisma.store.update({
       where: { id },
@@ -112,6 +114,8 @@ router.put('/:id', requireAdmin, async (req, res) => {
         status,
         managerId,
         imageUrl,
+        introduction,
+        recommendedHotel,
         updatedAt: new Date(),
       },
     });
@@ -161,6 +165,234 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Delete store error:', error);
     res.status(500).json({ error: '删除门店失败' });
+  }
+});
+
+// Helper: calculate total amount received in a period and auto rebate
+async function computeRebateAmount(storeId, startAt, thresholds) {
+  const { threshold1, rebate1, threshold2, rebate2, threshold3, rebate3 } = thresholds;
+
+  const result = await prisma.transaction.aggregate({
+    where: {
+      storeId,
+      status: { in: ['paid', 'refunded'] },
+      transactionDate: {
+        gte: new Date(startAt),
+        lte: new Date(),
+      },
+    },
+    _sum: {
+      amountReceived: true,
+    },
+  });
+
+  const currentAmount = result._sum.amountReceived || 0;
+
+  const autoRebate = currentAmount >= threshold3 ? rebate3
+    : currentAmount >= threshold2 ? rebate2
+    : currentAmount >= threshold1 ? rebate1
+    : 0;
+
+  return { currentAmount, autoRebate };
+}
+
+// GET /api/stores/:id/rebate/active - Get active rebate period
+router.get('/:id/rebate/active', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user.role !== 'admin' && req.user.storeId !== id) {
+      return res.status(403).json({ error: '无权访问该门店' });
+    }
+
+    const period = await prisma.storeRebatePeriod.findFirst({
+      where: { storeId: id, status: 'active' },
+    });
+
+    if (!period) {
+      return res.status(404).json({ error: '当前没有进行中的返利周期' });
+    }
+
+    const { currentAmount, autoRebate } = await computeRebateAmount(id, period.startAt, {
+      threshold1: period.threshold1,
+      rebate1: period.rebate1,
+      threshold2: period.threshold2,
+      rebate2: period.rebate2,
+      threshold3: period.threshold3,
+      rebate3: period.rebate3,
+    });
+
+    res.json({ ...period, currentAmount, autoRebate });
+  } catch (error) {
+    console.error('Get active rebate error:', error);
+    res.status(500).json({ error: '获取返利周期失败' });
+  }
+});
+
+// POST /api/stores/:id/rebate - Create rebate period (admin/super_admin only)
+router.post('/:id/rebate', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: '无权操作返利' });
+    }
+
+    const {
+      startAt,
+      endAt,
+      threshold1,
+      rebate1,
+      threshold2,
+      rebate2,
+      threshold3,
+      rebate3,
+    } = req.body;
+
+    if (threshold1 >= threshold2 || threshold2 >= threshold3) {
+      return res.status(400).json({ error: '门限必须满足 threshold1 < threshold2 < threshold3' });
+    }
+
+    if (endAt && new Date(startAt) >= new Date(endAt)) {
+      return res.status(400).json({ error: 'startAt 必须早于 endAt' });
+    }
+
+    const existingActive = await prisma.storeRebatePeriod.findFirst({
+      where: { storeId: id, status: 'active' },
+    });
+
+    if (existingActive) {
+      return res.status(409).json({ error: '该门店已存在进行中的返利周期' });
+    }
+
+    const period = await prisma.storeRebatePeriod.create({
+      data: {
+        storeId: id,
+        startAt: new Date(startAt),
+        endAt: endAt ? new Date(endAt) : null,
+        threshold1: parseFloat(threshold1),
+        rebate1: parseFloat(rebate1),
+        threshold2: parseFloat(threshold2),
+        rebate2: parseFloat(rebate2),
+        threshold3: parseFloat(threshold3),
+        rebate3: parseFloat(rebate3),
+      },
+    });
+
+    res.status(201).json(period);
+  } catch (error) {
+    console.error('Create rebate period error:', error);
+    res.status(500).json({ error: '创建返利周期失败' });
+  }
+});
+
+// POST /api/stores/:id/rebate/close - Close active rebate period (admin/super_admin only)
+router.post('/:id/rebate/close', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: '无权操作返利' });
+    }
+
+    const period = await prisma.storeRebatePeriod.findFirst({
+      where: { storeId: id, status: 'active' },
+    });
+
+    if (!period) {
+      return res.status(404).json({ error: '当前没有进行中的返利周期' });
+    }
+
+    const { currentAmount, autoRebate } = await computeRebateAmount(id, period.startAt, {
+      threshold1: period.threshold1,
+      rebate1: period.rebate1,
+      threshold2: period.threshold2,
+      rebate2: period.rebate2,
+      threshold3: period.threshold3,
+      rebate3: period.rebate3,
+    });
+
+    const manualRebate = req.body.manualRebate;
+    const confirmedRebate = (manualRebate !== undefined && manualRebate !== null && manualRebate !== '')
+      ? parseFloat(manualRebate)
+      : autoRebate;
+
+    const operator = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { name: true },
+    });
+
+    const updated = await prisma.storeRebatePeriod.update({
+      where: { id: period.id },
+      data: {
+        status: 'confirmed',
+        endAt: new Date(),
+        autoRebate,
+        confirmedRebate,
+        confirmedAt: new Date(),
+        confirmedById: req.user.userId,
+        confirmedByName: operator?.name || null,
+      },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Close rebate period error:', error);
+    res.status(500).json({ error: '结算返利周期失败' });
+  }
+});
+
+// GET /api/stores/:id/rebate/history - List confirmed rebate periods
+router.get('/:id/rebate/history', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user.role !== 'admin' && req.user.storeId !== id) {
+      return res.status(403).json({ error: '无权访问该门店' });
+    }
+
+    const periods = await prisma.storeRebatePeriod.findMany({
+      where: { storeId: id, status: 'confirmed' },
+      orderBy: { confirmedAt: 'desc' },
+    });
+
+    res.json(periods);
+  } catch (error) {
+    console.error('List rebate history error:', error);
+    res.status(500).json({ error: '获取返利历史失败' });
+  }
+});
+
+// PUT /api/stores/:id/rebate/history/:rebateId - Update confirmed rebate amount (admin/super_admin only)
+router.put('/:id/rebate/history/:rebateId', async (req, res) => {
+  try {
+    const { id, rebateId } = req.params;
+
+    if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: '无权操作返利' });
+    }
+
+    const { confirmedRebate } = req.body;
+
+    const existing = await prisma.storeRebatePeriod.findFirst({
+      where: { id: rebateId, storeId: id, status: 'confirmed' },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: '返利周期不存在或未确认' });
+    }
+
+    const updated = await prisma.storeRebatePeriod.update({
+      where: { id: rebateId },
+      data: {
+        confirmedRebate: parseFloat(confirmedRebate),
+      },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Update confirmed rebate error:', error);
+    res.status(500).json({ error: '更新返利金额失败' });
   }
 });
 

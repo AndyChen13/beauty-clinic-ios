@@ -29,19 +29,22 @@ model User {
 }
 
 model Store {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  address   String?
-  phone     String?
-  status    String   @default("pending")
-  managerId String?  @map("manager_id") @db.Uuid
-  imageUrl  String?  @map("image_url")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  address           String?
+  phone             String?
+  status            String   @default("pending")
+  managerId         String?  @map("manager_id") @db.Uuid
+  imageUrl          String?  @map("image_url")
+  introduction      String?
+  recommendedHotel  String?  @map("recommended_hotel")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
-  customers    Customer[]
-  transactions Transaction[]
-  users        User[]
+  customers     Customer[]
+  transactions  Transaction[]
+  users         User[]
+  rebatePeriods StoreRebatePeriod[]
 
   @@map("stores")
 }
@@ -101,6 +104,7 @@ model ServiceRecord {
   photos            String[]
   customerFeedback  String?  @map("customer_feedback")
   extraPayment      Float    @default(0) @map("extra_payment")
+  rebateAmount      Float    @default(0) @map("rebate_amount")
   extraPaymentNote  String?  @map("extra_payment_note")
   sessionsUsed      Int      @map("sessions_used")
   remainingSessions Int?     @map("remaining_sessions")
@@ -120,6 +124,8 @@ model Transaction {
   packageId             String   @map("package_id") @db.Uuid
   staffUserId           String?  @map("staff_user_id") @db.Uuid
   amount                Float
+  amountReceived        Float?   @map("amount_received")
+  storeRebateAmount     Float?   @map("store_rebate_amount")
   totalSessions         Int      @map("total_sessions")
   completedSessions     Int      @default(0) @map("completed_sessions")
   transactionDate       DateTime @map("transaction_date")
@@ -223,4 +229,30 @@ model SmsCode {
 
   @@index([phone])
   @@map("sms_codes")
+}
+
+model StoreRebatePeriod {
+  id                String   @id @default(uuid()) @db.Uuid
+  storeId           String   @map("store_id") @db.Uuid
+  store             Store    @relation(fields: [storeId], references: [id])
+  startAt           DateTime @map("start_at")
+  endAt             DateTime? @map("end_at")
+  threshold1        Float    @map("threshold_1")
+  rebate1           Float    @map("rebate_1")
+  threshold2        Float    @map("threshold_2")
+  rebate2           Float    @map("rebate_2")
+  threshold3        Float    @map("threshold_3")
+  rebate3           Float    @map("rebate_3")
+  status            String   @default("active") @map("status") // active, confirmed
+  autoRebate        Float?   @map("auto_rebate")
+  confirmedRebate   Float?   @map("confirmed_rebate")
+  confirmedAt       DateTime? @map("confirmed_at")
+  confirmedById     String?  @map("confirmed_by_id") @db.Uuid
+  confirmedByName   String?  @map("confirmed_by_name")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@index([status])
+  @@map("store_rebate_periods")
 }

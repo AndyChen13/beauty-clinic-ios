@@ -167,6 +167,7 @@ struct CustomerListView: View {
             }
             .task { await loadData() }
             .refreshable { await loadData() }
+            .onAppear { Task { await loadData() } }
         }
     }
     

@@ -38,6 +38,15 @@ struct ServiceRecordDetailView: View {
                         Text(displayRecord.serviceDate.formatted(date: .long, time: .shortened))
                             .font(.headline)
                         Spacer()
+                        if let branch = TransactionBranch(rawValue: displayRecord.branch) {
+                            Text(branch.displayName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(branch.color)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(branch.color.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
                     }
                     
                     if displayRecord.extraPayment > 0 {
@@ -330,9 +339,11 @@ struct PhotoViewer: View {
                 photos: nil,
                 customerFeedback: "效果很满意，下次再来",
                 extraPayment: 500,
+                rebateAmount: 0,
                 extraPaymentNote: "加购精华导入",
                 sessionsUsed: 1,
                 remainingSessions: 5,
+                branch: "光电",
                 createdAt: Date()
             ),
             customer: Customer(

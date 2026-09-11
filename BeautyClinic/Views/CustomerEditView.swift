@@ -4,7 +4,7 @@ import PhotosUI
 
 enum CustomerEditMode {
     case create
-    case edit(Customer)
+    case edit(Customer, openAddDeal: Bool = false)
 }
 
 struct CustomerEditView: View {
@@ -38,6 +38,7 @@ struct CustomerEditView: View {
     @State private var amountReceived = ""
     @State private var outstandingAmount = ""
     @State private var remainingSessions = ""
+    @State private var branch: TransactionBranch = .photoElectric
     
     // 编辑模式新增成交
     @State private var existingTransactions: [Transaction] = []
@@ -51,6 +52,7 @@ struct CustomerEditView: View {
     @State private var newCustomReceived = ""
     @State private var newCustomSessions = ""
     @State private var newCustomNotes = ""
+    @State private var newBranch: TransactionBranch = .photoElectric
     
     @State private var isSaving = false
     @State private var showError = false
@@ -59,6 +61,17 @@ struct CustomerEditView: View {
     @State private var photoData: Data?
     @State private var isLoadingPackages = false
     @State private var isLoadingTransactions = false
+    
+    init(mode: CustomerEditMode, stores: [Store], onSave: @escaping (Customer) -> Void) {
+        self.mode = mode
+        self.stores = stores
+        self.onSave = onSave
+        let shouldOpenAddDeal: Bool = {
+            if case .edit(_, let open) = mode { return open }
+            return false
+        }()
+        _showAddDeal = State(initialValue: shouldOpenAddDeal)
+    }
     
     private var isEditing: Bool {
         if case .edit = mode { return true }
@@ -186,7 +199,7 @@ struct CustomerEditView: View {
                         .scaledToFill()
                         .frame(width: 80, height: 80)
                         .clipShape(Circle())
-                } else if case .edit(let customer) = mode, let photoUrl = customer.photoUrl {
+                } else if case .edit(let customer, _) = mode, let photoUrl = customer.photoUrl {
                     AsyncImage(url: URL(string: photoUrl)) { image in
                         image.resizable().scaledToFill()
                     } placeholder: {
@@ -345,6 +358,8 @@ struct CustomerEditView: View {
             Toggle("添加本次成交", isOn: $showAddDeal)
             
             if showAddDeal {
+                newBranchPicker
+                
                 Toggle("自定义成交", isOn: $newUseCustomDeal)
                     .onChange(of: newUseCustomDeal) { _, isCustom in
                         if isCustom {
@@ -473,6 +488,8 @@ struct CustomerEditView: View {
     
     private var dealSection: some View {
         Section("成交历史") {
+            branchPicker
+            
             Toggle("自定义成交", isOn: $useCustomDeal)
             
             Toggle("自定义首次成交时间", isOn: $hasFirstTransactionDate)
@@ -486,6 +503,24 @@ struct CustomerEditView: View {
                 packageDealFields
             }
         }
+    }
+    
+    private var branchPicker: some View {
+        Picker("成交归属", selection: $branch) {
+            ForEach(TransactionBranch.allCases, id: \.self) { b in
+                Text(b.displayName).tag(b)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+    
+    private var newBranchPicker: some View {
+        Picker("成交归属", selection: $newBranch) {
+            ForEach(TransactionBranch.allCases, id: \.self) { b in
+                Text(b.displayName).tag(b)
+            }
+        }
+        .pickerStyle(.segmented)
     }
     
     private var customDealFields: some View {
@@ -598,7 +633,7 @@ struct CustomerEditView: View {
     }
     
     private func loadInitialData() {
-        if case .edit(let customer) = mode {
+        if case .edit(let customer, _) = mode {
             name = customer.name
             phone = customer.phone
             gender = customer.gender ?? "female"
@@ -714,7 +749,7 @@ struct CustomerEditView: View {
                 )
                 
                 var saved: Customer
-                if case .edit(let existing) = mode {
+                if case .edit(let existing, _) = mode {
                     // 先更新客户基本信息
                     saved = try await CustomerService.shared.updateCustomer(id: existing.id, data: insert)
                     
@@ -736,7 +771,9 @@ struct CustomerEditView: View {
                                 staffUserId: userState.currentUser?.id,
                                 amount: customAmount,
                                 amountReceived: customReceived,
+                                storeRebateAmount: 0,
                                 outstandingAmount: customOutstanding,
+                                branch: newBranch,
                                 totalSessions: Int(newCustomSessions) ?? 0,
                                 transactionDate: Date(),
                                 estimatedCompletionDate: nil,
@@ -747,7 +784,7 @@ struct CustomerEditView: View {
                         } else if !newSelectedPackageIds.isEmpty {
                             let totalReceived = Double(newAmountReceived) ?? 0
                             let totalOutstanding = newDealOutstanding
-                            try await createDealTransactions(customerId: saved.id, storeId: storeId, packages: newSelectedPackages, discount: newDealDiscountValue, discountSessions: newDealDiscountSessionsValue, totalReceived: totalReceived, totalOutstanding: totalOutstanding)
+                            try await createDealTransactions(customerId: saved.id, storeId: storeId, packages: newSelectedPackages, discount: newDealDiscountValue, discountSessions: newDealDiscountSessionsValue, totalReceived: totalReceived, totalOutstanding: totalOutstanding, totalRebate: 0, branch: newBranch)
                         }
                         
                         // 重新获取后端累计后的客户数据，再更新收款金额
@@ -783,7 +820,7 @@ struct CustomerEditView: View {
                     if isPackageDeal, let storeId = storeId {
                         let totalReceived = Double(amountReceived) ?? 0
                         let totalOutstanding = Double(outstandingAmount) ?? 0
-                        try await createDealTransactions(customerId: saved.id, storeId: storeId, packages: selectedPackages, discount: discountValue, discountSessions: discountSessionsValue, totalReceived: totalReceived, totalOutstanding: totalOutstanding)
+                        try await createDealTransactions(customerId: saved.id, storeId: storeId, packages: selectedPackages, discount: discountValue, discountSessions: discountSessionsValue, totalReceived: totalReceived, totalOutstanding: totalOutstanding, totalRebate: 0, branch: branch)
                     }
                     
                     // 自定义成交也生成一条交易记录，packageId 传 nil，后端会关联占位套餐
@@ -795,7 +832,9 @@ struct CustomerEditView: View {
                             staffUserId: userState.currentUser?.id,
                             amount: Double(firstTransactionAmount) ?? 0,
                             amountReceived: Double(amountReceived) ?? 0,
+                            storeRebateAmount: 0,
                             outstandingAmount: Double(outstandingAmount) ?? 0,
+                            branch: branch,
                             totalSessions: Int(remainingSessions) ?? 0,
                             transactionDate: Date(),
                             estimatedCompletionDate: nil,
@@ -845,10 +884,11 @@ struct CustomerEditView: View {
         }
     }
     
-    private func createDealTransactions(customerId: UUID, storeId: UUID, packages: [ServicePackage], discount: Double, discountSessions: Int, totalReceived: Double, totalOutstanding: Double) async throws {
-        // 将整单已收款/待收款按比例分配到每个套餐交易上
+    private func createDealTransactions(customerId: UUID, storeId: UUID, packages: [ServicePackage], discount: Double, discountSessions: Int, totalReceived: Double, totalOutstanding: Double, totalRebate: Double, branch: TransactionBranch) async throws {
+        // 将整单已收款/待收款/返利按比例分配到每个套餐交易上
         var remainingReceived = totalReceived
         var remainingOutstanding = totalOutstanding
+        var remainingRebate = totalRebate
         var totalPrice: Double = 0
         for package in packages { totalPrice += package.price }
 
@@ -864,11 +904,13 @@ struct CustomerEditView: View {
 
             let ratio = totalPrice > 0 ? package.price / totalPrice : 1.0
             var allocatedReceived = min(remainingReceived, package.price)
-            // 本次成交金额可能因折扣低于原价，已收款和待收款以实际可收上限为准
             allocatedReceived = min(allocatedReceived, package.price)
             let allocatedOutstanding = min(remainingOutstanding, package.price - allocatedReceived)
+            var allocatedRebate = index == packages.count - 1 ? remainingRebate : min(remainingRebate, totalRebate * ratio)
+            allocatedRebate = min(allocatedRebate, package.price)
             remainingReceived -= allocatedReceived
             remainingOutstanding -= allocatedOutstanding
+            remainingRebate -= allocatedRebate
 
             let transaction = TransactionInsert(
                 customerId: customerId,
@@ -877,7 +919,9 @@ struct CustomerEditView: View {
                 staffUserId: userState.currentUser?.id,
                 amount: package.price,
                 amountReceived: allocatedReceived,
+                storeRebateAmount: allocatedRebate,
                 outstandingAmount: allocatedOutstanding,
+                branch: branch,
                 totalSessions: package.totalSessions + extraSessions,
                 transactionDate: Date(),
                 estimatedCompletionDate: nil,

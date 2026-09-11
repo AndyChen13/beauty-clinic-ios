@@ -55,6 +55,53 @@ struct SettingsView: View {
                                 Spacer()
                             }
                         }
+
+                        if userState.currentUser?.isSuperAdmin == true {
+                            NavigationLink {
+                                UserApprovalView()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "person.badge.shield.checkmark")
+                                        .foregroundColor(.green)
+                                        .frame(width: 28)
+                                    Text("新注册审批")
+                                    Spacer()
+                                    if userState.pendingUserCount > 0 {
+                                        Text("\(userState.pendingUserCount)")
+                                            .font(.caption2.weight(.semibold))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.red.opacity(0.9))
+                                            .foregroundColor(.white)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                            
+                            NavigationLink {
+                                LoginLogView()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "doc.text.magnifyingglass")
+                                        .foregroundColor(.blue)
+                                        .frame(width: 28)
+                                    Text("登录记录")
+                                    Spacer()
+                                }
+                            }
+
+                            NavigationLink {
+                                OperationApprovalView()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "list.bullet.clipboard")
+                                        .foregroundColor(.purple)
+                                        .frame(width: 28)
+                                    Text("操作审批")
+                                    Spacer()
+                                }
+                            }
+                        }
                     }
                 }
                 
@@ -132,8 +179,6 @@ struct RoleBadge: View {
     private var roleColor: Color {
         switch role {
         case .superAdmin: return .yellow
-        case .admin: return .red
-        case .storeUser: return .blue
         case .staff: return .green
         }
     }
@@ -163,7 +208,7 @@ struct AboutView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     InfoBlock(title: "功能介绍", content: "本应用为服务公司内部管理工具，提供客户管理、套餐管理、门店管理和成交记录等功能。帮助门店高效管理日常运营。")
                     
-                    InfoBlock(title: "权限说明", content: "• 超级管理员：管理所有数据和用户\n• 门店经理：管理本门店数据\n• 普通员工：查看和录入本门店数据\n\n删除操作需提交审批，由管理员审核后执行。")
+                    InfoBlock(title: "权限说明", content: "• 超级管理员：管理所有数据和用户\n• 员工：录入数据；修改/删除交易或交付需提交审批\n\n删除操作需提交审批，由超级管理员审核后执行。")
                     
                     InfoBlock(title: "技术栈", content: "• SwiftUI 用户界面\n• 自建 REST API 后端\n• PostgreSQL 数据库\n• 腾讯云 COS 存储\n• iOS 17+")
                 }

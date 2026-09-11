@@ -19,6 +19,7 @@ struct AuthView: View {
     @State private var isProcessing = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var successMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -52,6 +53,7 @@ struct AuthView: View {
                 .onChange(of: mode) { _, _ in
                     errorMessage = nil
                     showError = false
+                    successMessage = nil
                 }
                 
                 // Input Fields
@@ -113,11 +115,18 @@ struct AuthView: View {
                     }
                 }
                 
-                // Error
+                // Error / Success
                 if showError, let error = errorMessage {
                     Text(error)
                         .font(.caption)
                         .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                if let success = successMessage {
+                    Text(success)
+                        .font(.caption)
+                        .foregroundColor(.green)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
@@ -175,7 +184,11 @@ struct AuthView: View {
                 try await AuthService.shared.login(phone: phone, password: password)
                 onAuthSuccess()
             } catch let error as APIError {
-                errorMessage = error.localizedDescription
+                if case .pendingApproval(let msg) = error {
+                    errorMessage = msg
+                } else {
+                    errorMessage = error.localizedDescription
+                }
                 showError = true
             } catch {
                 errorMessage = "登录失败"
@@ -199,12 +212,16 @@ struct AuthView: View {
         
         Task {
             do {
-                try await AuthService.shared.register(phone: phone, password: password, name: name)
-                onAuthSuccess()
+                let message = try await AuthService.shared.register(phone: phone, password: password, name: name)
+                successMessage = message
+                errorMessage = nil
+                showError = false
             } catch let error as APIError {
+                successMessage = nil
                 errorMessage = error.localizedDescription
                 showError = true
             } catch {
+                successMessage = nil
                 errorMessage = "注册失败"
                 showError = true
             }

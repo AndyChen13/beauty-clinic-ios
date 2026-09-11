@@ -14,9 +14,11 @@ struct ServiceRecord: Codable, Identifiable, Hashable, Sendable {
     let photos: [String]?
     let customerFeedback: String?
     let extraPayment: Double
+    let rebateAmount: Double
     let extraPaymentNote: String?
     let sessionsUsed: Int
     let remainingSessions: Int?
+    let branch: String
     let createdAt: Date?
     
     enum CodingKeys: String, CodingKey {
@@ -32,9 +34,11 @@ struct ServiceRecord: Codable, Identifiable, Hashable, Sendable {
         case photos
         case customerFeedback = "customer_feedback"
         case extraPayment = "extra_payment"
+        case rebateAmount = "rebate_amount"
         case extraPaymentNote = "extra_payment_note"
         case sessionsUsed = "sessions_used"
         case remainingSessions = "remaining_sessions"
+        case branch
         case createdAt = "created_at"
     }
 }
@@ -51,9 +55,30 @@ struct ServiceRecordInsert: Codable, Sendable {
     let photos: [String]?
     let customerFeedback: String?
     let extraPayment: Double
+    let rebateAmount: Double
     let extraPaymentNote: String?
     let sessionsUsed: Int
     let remainingSessions: Int?
+    let branch: String
+    
+    init(customerId: UUID, transactionId: UUID?, serviceDate: Date, operatorId: UUID?, operatorName: String?, operatorPhone: String?, bodyPart: String?, serviceDetails: String?, photos: [String]?, customerFeedback: String?, extraPayment: Double, rebateAmount: Double = 0, extraPaymentNote: String?, sessionsUsed: Int, remainingSessions: Int?, branch: String = "光电") {
+        self.customerId = customerId
+        self.transactionId = transactionId
+        self.serviceDate = serviceDate
+        self.operatorId = operatorId
+        self.operatorName = operatorName
+        self.operatorPhone = operatorPhone
+        self.bodyPart = bodyPart
+        self.serviceDetails = serviceDetails
+        self.photos = photos
+        self.customerFeedback = customerFeedback
+        self.extraPayment = extraPayment
+        self.rebateAmount = rebateAmount
+        self.extraPaymentNote = extraPaymentNote
+        self.sessionsUsed = sessionsUsed
+        self.remainingSessions = remainingSessions
+        self.branch = branch
+    }
     
     enum CodingKeys: String, CodingKey {
         case customerId = "customer_id"
@@ -67,9 +92,11 @@ struct ServiceRecordInsert: Codable, Sendable {
         case photos
         case customerFeedback = "customer_feedback"
         case extraPayment = "extra_payment"
+        case rebateAmount = "rebate_amount"
         case extraPaymentNote = "extra_payment_note"
         case sessionsUsed = "sessions_used"
         case remainingSessions = "remaining_sessions"
+        case branch
     }
 }
 
@@ -83,9 +110,28 @@ struct ServiceRecordUpdate: Codable, Sendable {
     let photos: [String]
     let customerFeedback: String?
     let extraPayment: Double
+    let rebateAmount: Double
     let extraPaymentNote: String?
     let sessionsUsed: Int
     let remainingSessions: Int?
+    let branch: String
+    
+    init(transactionId: UUID?, serviceDate: Date, operatorName: String?, operatorPhone: String?, bodyPart: String?, serviceDetails: String?, photos: [String], customerFeedback: String?, extraPayment: Double, rebateAmount: Double = 0, extraPaymentNote: String?, sessionsUsed: Int, remainingSessions: Int?, branch: String = "光电") {
+        self.transactionId = transactionId
+        self.serviceDate = serviceDate
+        self.operatorName = operatorName
+        self.operatorPhone = operatorPhone
+        self.bodyPart = bodyPart
+        self.serviceDetails = serviceDetails
+        self.photos = photos
+        self.customerFeedback = customerFeedback
+        self.extraPayment = extraPayment
+        self.rebateAmount = rebateAmount
+        self.extraPaymentNote = extraPaymentNote
+        self.sessionsUsed = sessionsUsed
+        self.remainingSessions = remainingSessions
+        self.branch = branch
+    }
     
     enum CodingKeys: String, CodingKey {
         case transactionId = "transaction_id"
@@ -97,9 +143,11 @@ struct ServiceRecordUpdate: Codable, Sendable {
         case photos
         case customerFeedback = "customer_feedback"
         case extraPayment = "extra_payment"
+        case rebateAmount = "rebate_amount"
         case extraPaymentNote = "extra_payment_note"
         case sessionsUsed = "sessions_used"
         case remainingSessions = "remaining_sessions"
+        case branch
     }
     
     func encode(to encoder: Encoder) throws {
@@ -115,8 +163,10 @@ struct ServiceRecordUpdate: Codable, Sendable {
         try container.encode(photos, forKey: .photos)
         try container.encode(customerFeedback, forKey: .customerFeedback)
         try container.encode(extraPayment, forKey: .extraPayment)
+        try container.encode(rebateAmount, forKey: .rebateAmount)
         try container.encode(extraPaymentNote, forKey: .extraPaymentNote)
         try container.encode(sessionsUsed, forKey: .sessionsUsed)
         try container.encodeIfPresent(remainingSessions, forKey: .remainingSessions)
+        try container.encode(branch, forKey: .branch)
     }
 }

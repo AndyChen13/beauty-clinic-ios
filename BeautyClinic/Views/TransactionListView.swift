@@ -173,6 +173,13 @@ struct TransactionRow: View {
                             .background(transaction.status.color.opacity(0.12))
                             .foregroundColor(transaction.status.color)
                             .clipShape(Capsule())
+                        Text(transaction.branch.displayName)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(transaction.branch.color.opacity(0.12))
+                            .foregroundColor(transaction.branch.color)
+                            .clipShape(Capsule())
                         Text(formatDate(transaction.transactionDate))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -262,6 +269,7 @@ struct TransactionRecordView: View {
     @State private var totalSessions = "1"
     @State private var notes = ""
     @State private var selectedDate = Date()
+    @State private var branch: TransactionBranch = .photoElectric
     @State private var isSaving = false
     @State private var showError = false
     @State private var errorMessage = ""
@@ -298,6 +306,12 @@ struct TransactionRecordView: View {
                 }
                 
                 Section("成交信息") {
+                    Picker("成交归属", selection: $branch) {
+                        ForEach(TransactionBranch.allCases, id: \.self) { b in
+                            Text(b.displayName).tag(b)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                     TextField("金额 (¥) *", text: $amount)
                         .keyboardType(.decimalPad)
                     TextField("总次数", text: $totalSessions)
@@ -363,7 +377,9 @@ struct TransactionRecordView: View {
                     staffUserId: nil,
                     amount: amountValue,
                     amountReceived: amountValue,
+                    storeRebateAmount: 0,
                     outstandingAmount: 0,
+                    branch: branch,
                     totalSessions: sessions,
                     transactionDate: selectedDate,
                     estimatedCompletionDate: estDate,

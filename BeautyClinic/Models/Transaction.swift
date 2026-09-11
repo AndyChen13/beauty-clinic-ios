@@ -10,6 +10,7 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
     let staffUserId: UUID?
     let amount: Double
     let amountReceived: Double?
+    let storeRebateAmount: Double?
     let outstandingAmount: Double?
     let totalSessions: Int
     let completedSessions: Int
@@ -24,6 +25,7 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
     var auditLogs: [TransactionAuditLog]?
     let createdAt: Date?
     let updatedAt: Date?
+    let branch: TransactionBranch
     
     var customerName: String?
     var packageName: String?
@@ -37,7 +39,9 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
         case staffUserId = "staff_user_id"
         case amount
         case amountReceived = "amount_received"
+        case storeRebateAmount = "store_rebate_amount"
         case outstandingAmount = "outstanding_amount"
+        case branch
         case totalSessions = "total_sessions"
         case completedSessions = "completed_sessions"
         case transactionDate = "transaction_date"
@@ -62,6 +66,25 @@ struct Transaction: Codable, Identifiable, Hashable, Sendable {
     var progressPercentage: Double {
         guard totalSessions > 0 else { return 0 }
         return Double(completedSessions) / Double(totalSessions)
+    }
+}
+
+enum TransactionBranch: String, Codable, Sendable, CaseIterable {
+    case photoElectric = "光电"
+    case medicalBeauty = "医美"
+    
+    var displayName: String {
+        switch self {
+        case .photoElectric: return "光电"
+        case .medicalBeauty: return "医美"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .photoElectric: return Color(hex: "5FB3A6")
+        case .medicalBeauty: return Color(hex: "C9A24B")
+        }
     }
 }
 
@@ -106,12 +129,31 @@ struct TransactionInsert: Codable, Sendable {
     let staffUserId: UUID?
     let amount: Double
     let amountReceived: Double?
+    let storeRebateAmount: Double?
     let outstandingAmount: Double?
+    let branch: TransactionBranch
     let totalSessions: Int
     let transactionDate: Date
     let estimatedCompletionDate: Date?
     let status: TransactionStatus
     let notes: String?
+    
+    init(customerId: UUID, storeId: UUID, packageId: UUID?, staffUserId: UUID?, amount: Double, amountReceived: Double?, storeRebateAmount: Double? = nil, outstandingAmount: Double?, branch: TransactionBranch = .photoElectric, totalSessions: Int, transactionDate: Date, estimatedCompletionDate: Date?, status: TransactionStatus, notes: String?) {
+        self.customerId = customerId
+        self.storeId = storeId
+        self.packageId = packageId
+        self.staffUserId = staffUserId
+        self.amount = amount
+        self.amountReceived = amountReceived
+        self.storeRebateAmount = storeRebateAmount
+        self.outstandingAmount = outstandingAmount
+        self.branch = branch
+        self.totalSessions = totalSessions
+        self.transactionDate = transactionDate
+        self.estimatedCompletionDate = estimatedCompletionDate
+        self.status = status
+        self.notes = notes
+    }
     
     enum CodingKeys: String, CodingKey {
         case customerId = "customer_id"
@@ -120,7 +162,9 @@ struct TransactionInsert: Codable, Sendable {
         case staffUserId = "staff_user_id"
         case amount
         case amountReceived = "amount_received"
+        case storeRebateAmount = "store_rebate_amount"
         case outstandingAmount = "outstanding_amount"
+        case branch
         case totalSessions = "total_sessions"
         case transactionDate = "transaction_date"
         case estimatedCompletionDate = "estimated_completion_date"
@@ -131,17 +175,26 @@ struct TransactionInsert: Codable, Sendable {
 struct TransactionUpdate: Codable, Sendable {
     let amount: Double?
     let amountReceived: Double?
+    let storeRebateAmount: Double?
+    let branch: TransactionBranch?
+    let totalSessions: Int?
     let notes: String?
     
-    init(amount: Double? = nil, amountReceived: Double? = nil, notes: String? = nil) {
+    init(amount: Double? = nil, amountReceived: Double? = nil, storeRebateAmount: Double? = nil, branch: TransactionBranch? = nil, totalSessions: Int? = nil, notes: String? = nil) {
         self.amount = amount
         self.amountReceived = amountReceived
+        self.storeRebateAmount = storeRebateAmount
+        self.branch = branch
+        self.totalSessions = totalSessions
         self.notes = notes
     }
     
     enum CodingKeys: String, CodingKey {
         case amount
         case amountReceived = "amount_received"
+        case storeRebateAmount = "store_rebate_amount"
+        case branch
+        case totalSessions = "total_sessions"
         case notes
     }
 }
@@ -171,6 +224,9 @@ struct TransactionAuditLog: Codable, Identifiable, Hashable, Sendable {
         switch field {
         case "amount": return "成交金额"
         case "amountReceived": return "已收金额"
+        case "storeRebateAmount": return "门店返利金额"
+        case "branch": return "成交归属"
+        case "totalSessions": return "应交付次数"
         case "notes": return "备注"
         default: return field
         }

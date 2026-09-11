@@ -116,3 +116,56 @@ struct StoreInsert: Codable, Sendable {
         case recommendedHotel = "recommended_hotel"
     }
 }
+
+struct StoreRebatePeriod: Codable, Identifiable, Sendable {
+    let id: String
+    let storeId: String
+    var startAt: Date
+    var endAt: Date?
+    var threshold1: Double
+    var rebate1: Double
+    var threshold2: Double
+    var rebate2: Double
+    var threshold3: Double
+    var rebate3: Double
+    var status: String
+    var autoRebate: Double?
+    var confirmedRebate: Double?
+    var confirmedAt: Date?
+    var confirmedById: String?
+    var confirmedByName: String?
+    let createdAt: Date
+    let updatedAt: Date
+
+    // 后端 GET /active 会额外返回 currentAmount 与 autoRebate（已映射到本字段）用于实时汇算
+    var currentAmount: Double?
+
+    // 后端接口统一返回 camelCase，请求时 StoreRebatePeriodInsert 走 snake_case
+    enum CodingKeys: String, CodingKey {
+        case id, storeId, startAt, endAt, threshold1, rebate1, threshold2, rebate2, threshold3, rebate3, status
+        case autoRebate, confirmedRebate, confirmedAt, confirmedById, confirmedByName, createdAt, updatedAt
+        case currentAmount
+    }
+}
+
+struct StoreRebatePeriodInsert: Codable, Sendable {
+    let startAt: Date
+    let endAt: Date?
+    let threshold1: Double
+    let rebate1: Double
+    let threshold2: Double
+    let rebate2: Double
+    let threshold3: Double
+    let rebate3: Double
+
+    enum CodingKeys: String, CodingKey {
+        case startAt = "start_at"
+        case endAt = "end_at"
+        case threshold1 = "threshold_1"
+        case rebate1 = "rebate_1"
+        case threshold2 = "threshold_2"
+        case rebate2 = "rebate_2"
+        case threshold3 = "threshold_3"
+        case rebate3 = "rebate_3"
+    }
+}
