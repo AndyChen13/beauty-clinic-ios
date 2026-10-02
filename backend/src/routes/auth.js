@@ -27,26 +27,27 @@ router.post('/register', [
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
+    const isSuperAdmin = process.env.SUPER_ADMIN_PHONES?.split(',').map(s => s.trim()).includes(phone);
     const user = await prisma.user.create({
       data: {
         phone,
         name,
         password: hashedPassword,
-        role: 'staff',
+        role: isSuperAdmin ? 'super_admin' : 'staff',
+        status: isSuperAdmin ? 'approved' : 'pending',
       },
     });
 
-    const token = generateToken(user);
-
+    // 新注册用户默认 pending，需 super_admin 审批后才能登录
     res.status(201).json({
       success: true,
-      token,
+      message: '注册成功，请等待超级管理员审批',
       user: {
         id: user.id,
         phone: user.phone,
         name: user.name,
         role: user.role,
+        status: user.status,
         storeId: user.storeId,
         avatarUrl: user.avatarUrl,
       },
@@ -80,6 +81,22 @@ router.post('/login', [
       return res.status(401).json({ error: '手机号或密码错误' });
     }
 
+    if (user.status !== 'approved') {
+      return res.status(403).json({ error: '账号未通过审批，请联系超级管理员', status: user.status });
+    }
+
+    await prisma.loginLog.create({
+      data: {
+        userId: user.id,
+        userName: user.name,
+        phone: user.phone,
+        role: user.role,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        status: 'success',
+        loginType: 'password',
+      },
+    });
     const token = generateToken(user);
     res.json({
       success: true,
@@ -89,6 +106,7 @@ router.post('/login', [
         phone: user.phone,
         name: user.name,
         role: user.role,
+        status: user.status,
         storeId: user.storeId,
         avatarUrl: user.avatarUrl,
       },
@@ -111,12 +129,26 @@ router.get('/me', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: '用户不存在' });
     }
 
+    await prisma.loginLog.create({
+      data: {
+        userId: user.id,
+        userName: user.name,
+        phone: user.phone,
+        role: user.role,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        status: 'success',
+        loginType: 'auto',
+      },
+    });
+
     res.json({
       id: user.id,
       phone: user.phone,
       email: user.email,
       name: user.name,
       role: user.role,
+      status: user.status,
       storeId: user.storeId,
       avatarUrl: user.avatarUrl,
     });

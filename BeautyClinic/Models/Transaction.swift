@@ -179,14 +179,16 @@ struct TransactionUpdate: Codable, Sendable {
     let branch: TransactionBranch?
     let totalSessions: Int?
     let notes: String?
+    let transactionDate: Date?
     
-    init(amount: Double? = nil, amountReceived: Double? = nil, storeRebateAmount: Double? = nil, branch: TransactionBranch? = nil, totalSessions: Int? = nil, notes: String? = nil) {
+    init(amount: Double? = nil, amountReceived: Double? = nil, storeRebateAmount: Double? = nil, branch: TransactionBranch? = nil, totalSessions: Int? = nil, notes: String? = nil, transactionDate: Date? = nil) {
         self.amount = amount
         self.amountReceived = amountReceived
         self.storeRebateAmount = storeRebateAmount
         self.branch = branch
         self.totalSessions = totalSessions
         self.notes = notes
+        self.transactionDate = transactionDate
     }
     
     enum CodingKeys: String, CodingKey {
@@ -196,6 +198,7 @@ struct TransactionUpdate: Codable, Sendable {
         case branch
         case totalSessions = "total_sessions"
         case notes
+        case transactionDate = "transaction_date"
     }
 }
 
@@ -228,6 +231,7 @@ struct TransactionAuditLog: Codable, Identifiable, Hashable, Sendable {
         case "branch": return "成交归属"
         case "totalSessions": return "应交付次数"
         case "notes": return "备注"
+        case "transactionDate": return "成交时间"
         default: return field
         }
     }

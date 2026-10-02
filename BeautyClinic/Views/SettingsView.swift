@@ -45,13 +45,13 @@ struct SettingsView: View {
                 if userState.isAdmin {
                     Section("管理功能") {
                         NavigationLink {
-                            AdminApprovalView()
+                            OperationApprovalView()
                         } label: {
                             HStack {
-                                Image(systemName: "checkmark.shield")
-                                    .foregroundColor(.orange)
+                                Image(systemName: "list.bullet.clipboard")
+                                    .foregroundColor(.purple)
                                     .frame(width: 28)
-                                Text("删除审批")
+                                Text("操作审批")
                                 Spacer()
                             }
                         }
@@ -77,7 +77,7 @@ struct SettingsView: View {
                                     }
                                 }
                             }
-                            
+
                             NavigationLink {
                                 LoginLogView()
                             } label: {
@@ -89,17 +89,34 @@ struct SettingsView: View {
                                     Spacer()
                                 }
                             }
-
-                            NavigationLink {
-                                OperationApprovalView()
-                            } label: {
-                                HStack {
-                                    Image(systemName: "list.bullet.clipboard")
-                                        .foregroundColor(.purple)
-                                        .frame(width: 28)
-                                    Text("操作审批")
-                                    Spacer()
+                            
+                            // 仅 13295152146 可见导出功能
+                            if userState.currentUser?.phone == "13295152146" {
+                                NavigationLink {
+                                    ExportView()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "arrow.down.doc.fill")
+                                            .foregroundColor(.orange)
+                                            .frame(width: 28)
+                                        Text("数据导出")
+                                        Spacer()
+                                    }
                                 }
+                            }
+                        }
+                    }
+                } else {
+                    Section("我的") {
+                        NavigationLink {
+                            OperationApprovalView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "list.bullet.clipboard")
+                                    .foregroundColor(.purple)
+                                    .frame(width: 28)
+                                Text("我的审批")
+                                Spacer()
                             }
                         }
                     }

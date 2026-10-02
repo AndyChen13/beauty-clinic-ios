@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const prisma = require('../config/database');
-const { authMiddleware, requireAdmin } = require('../middleware/auth');
+const { authMiddleware, requireSuperAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
     const where = {};
 
     // Permission filter
-    if (req.user.role !== 'admin') {
+    if (req.user.role === 'store_user') {
       where.associatedStoreId = req.user.storeId;
     } else if (storeId) {
       where.associatedStoreId = storeId;
@@ -70,7 +70,7 @@ router.get('/:id', async (req, res) => {
     }
 
     // Check permission
-    if (req.user.role !== 'admin' && customer.associatedStoreId !== req.user.storeId) {
+    if (req.user.role === 'store_user' && customer.associatedStoreId !== req.user.storeId) {
       return res.status(403).json({ error: '无权访问该客户' });
     }
 
@@ -83,7 +83,6 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/customers - Create customer
 router.post('/', [
-  body('phone').notEmpty().withMessage('手机号不能为空'),
   body('name').trim().notEmpty().withMessage('姓名不能为空'),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -92,10 +91,15 @@ router.post('/', [
   }
 
   try {
-    const data = req.body;
+    const data = Object.fromEntries(
+    Object.entries(req.body).map(([k, v]) => [
+      k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()),
+      v
+    ])
+  );
 
     // Non-admin must assign to their store
-    if (req.user.role !== 'admin' && !data.associatedStoreId) {
+    if (req.user.role === 'store_user' && !data.associatedStoreId) {
       data.associatedStoreId = req.user.storeId;
     }
 
@@ -103,6 +107,7 @@ router.post('/', [
       data: {
         ...data,
         createdBy: req.user.userId,
+        createdByName: req.user.name,
         preferences: data.preferences || {},
       },
       include: {
@@ -132,13 +137,23 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: '客户不存在' });
     }
 
-    if (req.user.role !== 'admin' && existing.associatedStoreId !== req.user.storeId) {
+    if (req.user.role === 'store_user' && existing.associatedStoreId !== req.user.storeId) {
       return res.status(403).json({ error: '无权修改该客户' });
     }
 
-    const data = req.body;
+    const data = Object.fromEntries(
+    Object.entries(req.body).map(([k, v]) => [
+      k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()),
+      v
+    ])
+  );
     delete data.id; // Prevent ID modification
     delete data.createdBy; // Prevent creator modification
+
+    // 前端未传头像时保留原头像，避免编辑客户资料把头像清空
+    if (data.photoUrl === null || data.photoUrl === undefined) {
+      delete data.photoUrl;
+    }
 
     if (data.preferences) {
       data.preferences = data.preferences;
@@ -160,7 +175,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/customers/:id - Delete customer
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireSuperAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -173,16 +188,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: '客户不存在' });
     }
 
-    // Permission check
-    if (req.user.role !== 'admin') {
-      // Non-admin sends deletion request instead
-      return res.status(403).json({
-        error: '无权直接删除，请提交删除申请',
-        requireRequest: true,
-      });
-    }
-
-    // Admin can delete, but check remaining sessions
+    // Super admin can delete, but check remaining sessions
     if (customer.remainingSessions > 0) {
       return res.status(400).json({
         error: `该客户还有 ${customer.remainingSessions} 次待交付服务，请确认已交付完成后再删除`,
@@ -196,6 +202,64 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete customer error:', error);
     res.status(500).json({ error: '删除客户失败' });
+  }
+});
+
+
+// GET /api/customers/:id/photos - List customer photos
+router.get('/:id/photos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const customer = await prisma.customer.findUnique({
+      where: { id },
+      select: { associatedStoreId: true },
+    });
+    if (req.user.role === 'store_user' && customer.associatedStoreId !== req.user.storeId) {
+      return res.status(403).json({ error: '无权查看该客户照片' });
+    }
+    const photos = await prisma.customerPhoto.findMany({
+      where: { customerId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(photos);
+  } catch (error) {
+    console.error('Get customer photos error:', error);
+    res.status(500).json({ error: '获取客户照片失败' });
+  }
+});
+
+// POST /api/customers/:id/photos - Add a customer photo
+router.post('/:id/photos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    const data = Object.fromEntries(
+      Object.entries(body).map(([k, v]) => [
+        k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()),
+        v
+      ])
+    );
+    const customer = await prisma.customer.findUnique({
+      where: { id },
+      select: { associatedStoreId: true },
+    });
+    if (req.user.role === 'store_user' && customer.associatedStoreId !== req.user.storeId) {
+      return res.status(403).json({ error: '无权添加该客户照片' });
+    }
+    const photo = await prisma.customerPhoto.create({
+      data: {
+        customerId: id,
+        photoUrl: data.photoUrl,
+        photoType: data.photoType || 'progress',
+        notes: data.notes,
+        uploadedBy: data.uploadedBy || req.user.userId,
+        uploadedByName: req.user.name,
+      },
+    });
+    res.status(201).json(photo);
+  } catch (error) {
+    console.error('Create customer photo error:', error);
+    res.status(500).json({ error: '添加客户照片失败' });
   }
 });
 

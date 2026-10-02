@@ -53,13 +53,14 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ error: '交易不存在' });
     }
 
-    if (req.user.role !== 'admin' && transaction.storeId !== req.user.storeId) {
+    if (req.user.role === 'store_user' && transaction.storeId !== req.user.storeId) {
       return res.status(403).json({ error: '无权操作' });
     }
 
     const delivery = await prisma.delivery.create({
       data: {
         ...data,
+        staffUserName: req.user.name,
       },
     });
 

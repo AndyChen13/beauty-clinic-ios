@@ -19,6 +19,7 @@ struct CustomerListView: View {
     @State private var pendingDeliveryCount = 0
     @State private var deleteTargetCustomer: Customer?
     @State private var selectedTagFilter: TagFilter = .all
+    @State private var selectedStoreId: UUID?
     
     enum TagFilter: CaseIterable {
         case all, photoElectric, medicalBeauty, both
@@ -47,11 +48,22 @@ struct CustomerListView: View {
                 $0.branchTags.contains(.photoElectric) && $0.branchTags.contains(.medicalBeauty)
             }
         }
+        if let storeId = selectedStoreId {
+            result = result.filter { $0.associatedStoreId == storeId }
+        }
         if searchTerm.isEmpty { return result }
         let term = searchTerm.lowercased()
         return result.filter {
             $0.name.lowercased().contains(term) || $0.phone.contains(term)
         }
+    }
+    
+    private var selectedStoreName: String {
+        if let storeId = selectedStoreId,
+           let store = stores.first(where: { $0.id == storeId }) {
+            return store.name
+        }
+        return "全部门店"
     }
     
     var body: some View {
@@ -97,8 +109,9 @@ struct CustomerListView: View {
                 } else {
                     List {
                         ForEach(filteredCustomers) { customer in
+                            let storeName = stores.first(where: { $0.id == customer.associatedStoreId })?.name
                             NavigationLink(destination: CustomerDetailView(customer: customer, stores: stores)) {
-                                CustomerRow(customer: customer)
+                                CustomerRow(customer: customer, storeName: storeName)
                             }
                             .swipeActions(edge: .trailing) {
                                 if userState.isAdmin {
@@ -125,6 +138,23 @@ struct CustomerListView: View {
             .navigationTitle("客户管理")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button("全部门店") { selectedStoreId = nil }
+                        Divider()
+                        ForEach(stores) { store in
+                            Button(store.name) { selectedStoreId = store.id }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(selectedStoreName)
+                                .font(.subheadline)
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.primary)
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingAddSheet = true }) {
                         Image(systemName: "plus")
                     }
@@ -139,7 +169,7 @@ struct CustomerListView: View {
                 DeleteRequestSheet(
                     itemName: customerToDelete?.name ?? "",
                     reason: $deleteReason,
-                    onSubmit: submitDeleteRequest
+                    onSubmit: submitDeleteApproval
                 )
             }
             .alert("错误", isPresented: $showError) {
@@ -200,25 +230,25 @@ struct CustomerListView: View {
         }
     }
     
-    private func submitDeleteRequest() {
+    private func submitDeleteApproval() {
         guard let customer = customerToDelete else { return }
         Task {
             do {
-                let request = DeletionRequestInsert(
-                    requesterId: userState.currentUser?.id ?? UUID(),
+                var payload: [String: JSONValue] = [:]
+                payload["customerName"] = .string(customer.name)
+                if !deleteReason.isEmpty {
+                    payload["reason"] = .string(deleteReason)
+                }
+                _ = try await AdminService.shared.createOperationApproval(
+                    operationType: "delete",
                     targetType: "customer",
                     targetId: customer.id,
-                    targetName: customer.name,
-                    reason: deleteReason.isEmpty ? nil : deleteReason
-                )
-                struct EmptyResponse: Codable {}
-                let _: EmptyResponse = try await APIClient.shared.post(
-                    path: "/api/deletion-requests",
-                    body: request
+                    payload: payload
                 )
                 await MainActor.run {
                     deleteReason = ""
                     customerToDelete = nil
+                    showingDeleteRequest = false
                 }
             } catch {
                 errorMessage = "提交失败: \(error.localizedDescription)"
@@ -266,6 +296,13 @@ struct CustomerTagChip: View {
 
 struct CustomerRow: View {
     let customer: Customer
+    let storeName: String?
+    
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
     
     var body: some View {
         HStack(spacing: 12) {
@@ -281,7 +318,7 @@ struct CustomerRow: View {
                 AvatarView(name: customer.name, size: 44)
             }
             
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(customer.name)
                         .font(.subheadline.weight(.medium))
@@ -298,6 +335,42 @@ struct CustomerRow: View {
                 Text(customer.phone)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                
+                HStack(spacing: 6) {
+                    if let storeName = storeName, !storeName.isEmpty {
+                        Label {
+                            Text(storeName)
+                                .lineLimit(1)
+                        } icon: {
+                            Image(systemName: "storefront")
+                                .font(.caption2)
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(UIColor.tertiarySystemBackground))
+                        .clipShape(Capsule())
+                    }
+                    
+                    Spacer(minLength: 6)
+                    
+                    if let createdAt = customer.createdAt {
+                        Label {
+                            Text(Self.dateFormatter.string(from: createdAt))
+                                .lineLimit(1)
+                        } icon: {
+                            Image(systemName: "calendar")
+                                .font(.caption2)
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(UIColor.tertiarySystemBackground))
+                        .clipShape(Capsule())
+                    }
+                }
             }
             
             Spacer()

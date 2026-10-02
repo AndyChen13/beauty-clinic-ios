@@ -150,14 +150,17 @@ struct PackageListView: View {
         guard let package = packageToDelete else { return }
         Task {
             do {
-                let request = DeletionRequestInsert(
-                    requesterId: userState.currentUser?.id ?? UUID(),
+                var payload: [String: JSONValue] = [:]
+                payload["packageName"] = .string(package.name)
+                if !deleteReason.isEmpty {
+                    payload["reason"] = .string(deleteReason)
+                }
+                _ = try await AdminService.shared.createOperationApproval(
+                    operationType: "delete",
                     targetType: "package",
                     targetId: package.id,
-                    targetName: package.name,
-                    reason: deleteReason.isEmpty ? nil : deleteReason
+                    payload: payload
                 )
-                try await DeletionRequestService.shared.createRequest(request)
                 await MainActor.run {
                     deleteReason = ""
                     packageToDelete = nil

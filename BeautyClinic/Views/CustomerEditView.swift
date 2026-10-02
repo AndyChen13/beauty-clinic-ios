@@ -725,6 +725,9 @@ struct CustomerEditView: View {
                 if let photoData = photoData {
                     let fileName = "customer-\(UUID().uuidString).jpg"
                     photoUrl = try await TencentCOSUploadService.uploadImage(photoData, key: fileName)
+                } else if case .edit(let existing, _) = mode {
+                    // 没有更换头像时保留原头像，避免误清空
+                    photoUrl = existing.photoUrl
                 }
                 
                 // 有成交时，客户档案的剩余次数由交易记录累计，避免双倍叠加

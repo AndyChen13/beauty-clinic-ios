@@ -141,16 +141,23 @@ struct TodayTransactionsView: View {
 // MARK: - Monthly Revenue Trend
 struct MonthlyRevenueTrendView: View {
     let transactions: [Transaction]
+    /// 统计锚点日期：默认本月；传入上月初可查看上月
+    var anchor: Date = Date()
     
     @State private var selectedDate: Date?
     
     private var calendar: Calendar { Calendar.current }
-    private var now: Date { Date() }
     private var startOfMonth: Date {
-        calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
+        calendar.date(from: calendar.dateComponents([.year, .month], from: anchor))!
     }
     private var daysInMonth: Int {
-        calendar.range(of: .day, in: .month, for: now)!.count
+        calendar.range(of: .day, in: .month, for: anchor)!.count
+    }
+    private var isCurrentMonth: Bool {
+        calendar.isDate(anchor, equalTo: Date(), toGranularity: .month)
+    }
+    private var periodTitle: String {
+        isCurrentMonth ? "本月收入" : anchor.formatted(.dateTime.year().month()) + "收入"
     }
     
     struct DailyRevenue: Identifiable {
@@ -164,7 +171,7 @@ struct MonthlyRevenueTrendView: View {
     var dailyRevenues: [DailyRevenue] {
         let monthTransactions = transactions.filter { $0.transactionDate >= startOfMonth }
         return (1...daysInMonth).map { day in
-            let components = calendar.dateComponents([.year, .month], from: now)
+            let components = calendar.dateComponents([.year, .month], from: anchor)
             let dayComponents = DateComponents(year: components.year, month: components.month, day: day)
             let date = calendar.date(from: dayComponents)!
             let start = calendar.startOfDay(for: date)
@@ -191,7 +198,7 @@ struct MonthlyRevenueTrendView: View {
         ScrollView {
             VStack(spacing: 20) {
                 SummaryCard(
-                    title: "本月收入",
+                    title: periodTitle,
                     value: "¥\(Int(monthlyTotal))",
                     subtitle: startOfMonth.formatted(.dateTime.year().month())
                 )
@@ -287,7 +294,103 @@ struct MonthlyRevenueTrendView: View {
             }
             .padding()
         }
-        .navigationTitle("本月收入")
+        .navigationTitle(periodTitle)
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+// MARK: - Year Revenue Trend
+struct YearRevenueTrendView: View {
+    let transactions: [Transaction]
+    
+    private var calendar: Calendar { Calendar.current }
+    private var startOfYear: Date {
+        calendar.date(from: calendar.dateComponents([.year], from: Date()))!
+    }
+    
+    struct MonthlyRevenue: Identifiable {
+        let id = UUID()
+        let month: Int
+        let date: Date
+        let revenue: Double
+    }
+    
+    var monthlyRevenues: [MonthlyRevenue] {
+        let yearComponents = calendar.dateComponents([.year], from: Date())
+        return (1...12).map { month in
+            let date = calendar.date(from: DateComponents(year: yearComponents.year, month: month, day: 1))!
+            let start = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
+            let end = calendar.date(byAdding: .month, value: 1, to: start)!
+            let monthTransactions = transactions.filter { $0.transactionDate >= start && $0.transactionDate < end }
+            let revenue = monthTransactions.reduce(0) { $0 + $1.amount }
+            return MonthlyRevenue(month: month, date: date, revenue: revenue)
+        }
+    }
+    
+    var yearTotal: Double {
+        monthlyRevenues.reduce(0) { $0 + $1.revenue }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                SummaryCard(
+                    title: "全年收入",
+                    value: "¥\(Int(yearTotal))",
+                    subtitle: startOfYear.formatted(.dateTime.year())
+                )
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("月度收入走势")
+                        .font(.headline)
+                    
+                    Chart(monthlyRevenues) { item in
+                        BarMark(
+                            x: .value("月份", item.date, unit: .month),
+                            y: .value("收入", item.revenue)
+                        )
+                        .foregroundStyle(Color.accentColor.opacity(0.7))
+                        .cornerRadius(4)
+                    }
+                    .frame(height: 240)
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: .month)) { value in
+                            AxisGridLine()
+                            AxisValueLabel(format: .dateTime.month(.narrow))
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks { value in
+                            AxisGridLine()
+                            AxisValueLabel {
+                                if let doubleValue = value.as(Double.self) {
+                                    Text("¥\(Int(doubleValue))")
+                                        .font(.caption2)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("收入统计")
+                        .font(.headline)
+                    
+                    let nonEmptyMonths = monthlyRevenues.filter { $0.revenue > 0 }
+                    InfoRow(label: "有成交月数", value: "\(nonEmptyMonths.count) 个月")
+                    InfoRow(label: "月均收入", value: "¥\(nonEmptyMonths.isEmpty ? 0 : Int(yearTotal / Double(nonEmptyMonths.count)))")
+                    InfoRow(label: "最高单月", value: "¥\(Int(nonEmptyMonths.max { $0.revenue < $1.revenue }?.revenue ?? 0))")
+                }
+                .padding()
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .padding()
+        }
+        .navigationTitle("全年累计收入")
         .navigationBarTitleDisplayMode(.large)
     }
 }
@@ -508,6 +611,116 @@ struct MonthlyTopView: View {
             .padding()
         }
         .navigationTitle("当月最佳成交")
+        .navigationBarTitleDisplayMode(.large)
+    }
+    
+    private func rankBadge(_ index: Int) -> some View {
+        let medals: [Color] = [.yellow, .gray, .brown]
+        let isTopThree = index < 3
+        let badgeColor = isTopThree ? medals[index] : Color(UIColor.tertiarySystemBackground)
+        return Text("\(index + 1)")
+            .font(.caption.weight(.bold))
+            .foregroundColor(isTopThree ? .black : .secondary)
+            .frame(width: 24, height: 24)
+            .background(badgeColor)
+            .clipShape(Circle())
+    }
+}
+
+// MARK: - 历史最佳成交（自使用 App 至今）
+struct AllTimeTopView: View {
+    let transactions: [Transaction]
+    
+    var totalRevenue: Double {
+        transactions.reduce(0) { $0 + $1.amount }
+    }
+    
+    /// 最早一笔成交日期（即开始使用 App 至今的起点）
+    var sinceDate: Date? {
+        transactions.map { $0.transactionDate }.min()
+    }
+    
+    var topStores: [(name: String, revenue: Double)] {
+        Dictionary(grouping: transactions, by: { $0.storeName ?? "未知门店" })
+            .map { (name: $0.key, revenue: $0.value.reduce(0) { $0 + $1.amount }) }
+            .sorted { $0.revenue > $1.revenue }
+    }
+    
+    var topCustomers: [(name: String, revenue: Double)] {
+        Dictionary(grouping: transactions, by: { $0.customerName ?? "未知客户" })
+            .map { (name: $0.key, revenue: $0.value.reduce(0) { $0 + $1.amount }) }
+            .sorted { $0.revenue > $1.revenue }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                SummaryCard(
+                    title: "历史累计成交",
+                    value: "¥\(Int(totalRevenue))",
+                    subtitle: {
+                        if let since = sinceDate {
+                            return "共 \(transactions.count) 笔 · 自 \(since.formatted(.dateTime.year().month().day())) 至今"
+                        }
+                        return "共 \(transactions.count) 笔"
+                    }()
+                )
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("最佳门店")
+                        .font(.headline)
+                    
+                    if topStores.isEmpty {
+                        Text("暂无数据")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(topStores.enumerated()), id: \.offset) { index, item in
+                            HStack {
+                                rankBadge(index)
+                                Text(item.name)
+                                    .font(.subheadline)
+                                Spacer()
+                                Text("¥\(Int(item.revenue))")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 6)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("最佳客户")
+                        .font(.headline)
+                    
+                    if topCustomers.isEmpty {
+                        Text("暂无数据")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(topCustomers.enumerated()), id: \.offset) { index, item in
+                            HStack {
+                                rankBadge(index)
+                                Text(item.name)
+                                    .font(.subheadline)
+                                Spacer()
+                                Text("¥\(Int(item.revenue))")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 6)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .padding()
+        }
+        .navigationTitle("历史最佳成交")
         .navigationBarTitleDisplayMode(.large)
     }
     

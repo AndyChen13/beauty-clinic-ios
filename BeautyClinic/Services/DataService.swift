@@ -183,6 +183,7 @@ class CustomerService {
             let remainingSessions: Int?
             let createdAt: String?
             let updatedAt: String?
+            let store: StoreBrief?
         }
         
         let responses: [CustomerResponse] = try await APIClient.shared.get(path: "/api/customers" + query)
@@ -197,6 +198,7 @@ class CustomerService {
                 preferences: r.preferences,
                 photoUrl: r.photoUrl,
                 associatedStoreId: r.associatedStoreId.flatMap { UUID(uuidString: $0) },
+                storeName: r.store?.name,
                 createdBy: r.createdBy.flatMap { UUID(uuidString: $0) },
                 lastVisit: nil,
                 firstTransactionDate: parseISO8601Date(r.firstTransactionDate),
@@ -322,6 +324,7 @@ class CustomerService {
             let remainingSessions: Int?
             let createdAt: String?
             let updatedAt: String?
+            let store: StoreBrief?
         }
         
         let r: CustomerResponse = try await APIClient.shared.get(path: "/api/customers/\(id.uuidString)")
@@ -335,6 +338,7 @@ class CustomerService {
             preferences: r.preferences,
             photoUrl: r.photoUrl,
             associatedStoreId: r.associatedStoreId.flatMap { UUID(uuidString: $0) },
+            storeName: r.store?.name,
             createdBy: r.createdBy.flatMap { UUID(uuidString: $0) },
             lastVisit: nil,
             firstTransactionDate: parseISO8601Date(r.firstTransactionDate),
@@ -356,6 +360,12 @@ class CustomerService {
             path: "/api/customers/\(id.uuidString)"
         )
     }
+}
+
+// MARK: - Store Brief（接口 store 关系精简结构）
+struct StoreBrief: Codable {
+    let id: String
+    let name: String
 }
 
 // MARK: - Date Parsing Helper
@@ -967,6 +977,8 @@ class DashboardService {
         }
         let today: TodayMonth
         let month: TodayMonth
+        let lastMonth: TodayMonth?
+        let year: TodayMonth?
         let pendingCount: Int
         let customerCount: Int
         let topStores: [TopStore]

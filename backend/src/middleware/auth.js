@@ -9,6 +9,7 @@ function generateToken(user) {
       userId: user.id,
       phone: user.phone,
       role: user.role,
+      name: user.name,
       storeId: user.storeId,
     },
     JWT_SECRET,
@@ -42,15 +43,23 @@ async function authMiddleware(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: '需要管理员权限' });
+  if (!req.user || req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: '需要超级管理员权限' });
   }
   next();
 }
 
 function requireManagerOrAbove(req, res, next) {
-  if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
-    return res.status(403).json({ error: '需要经理或以上权限' });
+  if (!req.user || req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: '需要超级管理员权限' });
+  }
+  next();
+}
+
+
+function requireSuperAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: '需要超级管理员权限' });
   }
   next();
 }
@@ -61,4 +70,5 @@ module.exports = {
   authMiddleware,
   requireAdmin,
   requireManagerOrAbove,
+  requireSuperAdmin,
 };

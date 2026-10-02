@@ -1,5 +1,16 @@
 const express = require('express');
 const prisma = require('../config/database');
+
+function snakeToCamelKeys(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(snakeToCamelKeys);
+  return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [
+      k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()),
+      v
+    ])
+  );
+}
 const { authMiddleware, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -54,7 +65,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireAdmin, async (req, res) => {
   try {
     const pkg = await prisma.servicePackage.create({
-      data: req.body,
+      data: snakeToCamelKeys(req.body),
     });
     res.status(201).json(pkg);
   } catch (error) {
@@ -69,26 +80,12 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const pkg = await prisma.servicePackage.update({
       where: { id },
-      data: { ...req.body, updatedAt: new Date() },
+      data: { ...snakeToCamelKeys(req.body), updatedAt: new Date() },
     });
     res.json(pkg);
   } catch (error) {
     console.error('Update package error:', error);
     res.status(500).json({ error: '更新套餐失败' });
-  }
-});
-
-// DELETE /api/packages/:id (admin only)
-router.delete('/:id', requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.servicePackage.delete({
-      where: { id },
-    });
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete package error:', error);
-    res.status(500).json({ error: '删除套餐失败' });
   }
 });
 
@@ -98,7 +95,7 @@ router.post('/:id/materials', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const material = await prisma.trainingMaterial.create({
       data: {
-        ...req.body,
+        ...snakeToCamelKeys(req.body),
         packageId: id,
       },
     });
@@ -108,5 +105,28 @@ router.post('/:id/materials', requireAdmin, async (req, res) => {
     res.status(500).json({ error: '创建培训材料失败' });
   }
 });
+
+
+// 删除套餐
+router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const transactionCount = await prisma.transaction.count({ where: { packageId: id } });
+
+    if (transactionCount > 0) {
+      return res.status(400).json({ error: '该套餐已被客户使用，无法删除' });
+    }
+
+    await prisma.servicePackage.delete({ where: { id } });
+    res.json({ success: true, message: '套餐已删除' });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: '套餐不存在' });
+    }
+    console.error('删除套餐失败:', error);
+    res.status(500).json({ error: '删除失败' });
+  }
+});
+
 
 module.exports = router;

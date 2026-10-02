@@ -259,19 +259,18 @@ struct StoreListView: View {
         guard let store = storeToDelete else { return }
         Task {
             do {
-                let request = DeletionRequestInsert(
-                    requesterId: userState.currentUser?.id ?? UUID(),
+                var payload: [String: JSONValue] = [:]
+                payload["storeName"] = .string(store.name)
+                if !deleteReason.isEmpty {
+                    payload["reason"] = .string(deleteReason)
+                }
+                _ = try await AdminService.shared.createOperationApproval(
+                    operationType: "delete",
                     targetType: "store",
                     targetId: store.id,
-                    targetName: store.name,
-                    reason: deleteReason.isEmpty ? nil : deleteReason
+                    payload: payload
                 )
-                struct EmptyResponse: Codable {}
-                let _: EmptyResponse = try await APIClient.shared.post(
-                    path: "/api/deletion-requests",
-                    body: request
-                )
-                _ = await MainActor.run {
+                await MainActor.run {
                     deleteReason = ""
                     storeToDelete = nil
                 }

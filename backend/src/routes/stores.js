@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
     if (status) where.status = status;
 
     // Non-admin users can only see their assigned store
-    if (req.user.role !== 'admin') {
+    if (req.user.role === 'store_user' && req.user.storeId) {
       where.id = req.user.storeId;
     }
 
@@ -42,7 +42,7 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
 
     // Check permission
-    if (req.user.role !== 'admin' && req.user.storeId !== id) {
+    if (req.user.role === 'store_user' && req.user.storeId !== id) {
       return res.status(403).json({ error: '无权访问该门店' });
     }
 
@@ -176,6 +176,7 @@ async function computeRebateAmount(storeId, startAt, thresholds) {
     where: {
       storeId,
       status: { in: ['paid', 'refunded'] },
+      branch: '光电',
       transactionDate: {
         gte: new Date(startAt),
         lte: new Date(),
@@ -201,7 +202,7 @@ router.get('/:id/rebate/active', async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (req.user.role !== 'admin' && req.user.storeId !== id) {
+    if (req.user.role === 'store_user' && req.user.storeId !== id) {
       return res.status(403).json({ error: '无权访问该门店' });
     }
 
@@ -238,16 +239,18 @@ router.post('/:id/rebate', async (req, res) => {
       return res.status(403).json({ error: '无权操作返利' });
     }
 
-    const {
-      startAt,
-      endAt,
-      threshold1,
-      rebate1,
-      threshold2,
-      rebate2,
-      threshold3,
-      rebate3,
-    } = req.body;
+    const startAt = req.body.startAt || req.body.start_at;
+    const endAt = req.body.endAt !== undefined ? req.body.endAt : req.body.end_at;
+    const threshold1 = parseFloat(req.body.threshold1 !== undefined ? req.body.threshold1 : req.body.threshold_1);
+    const rebate1 = parseFloat(req.body.rebate1 !== undefined ? req.body.rebate1 : req.body.rebate_1);
+    const threshold2 = parseFloat(req.body.threshold2 !== undefined ? req.body.threshold2 : req.body.threshold_2);
+    const rebate2 = parseFloat(req.body.rebate2 !== undefined ? req.body.rebate2 : req.body.rebate_2);
+    const threshold3 = parseFloat(req.body.threshold3 !== undefined ? req.body.threshold3 : req.body.threshold_3);
+    const rebate3 = parseFloat(req.body.rebate3 !== undefined ? req.body.rebate3 : req.body.rebate_3);
+
+    if (isNaN(threshold1) || isNaN(threshold2) || isNaN(threshold3) || isNaN(rebate1) || isNaN(rebate2) || isNaN(rebate3)) {
+      return res.status(400).json({ error: '门限和返利金额必须是有效数字' });
+    }
 
     if (threshold1 >= threshold2 || threshold2 >= threshold3) {
       return res.status(400).json({ error: '门限必须满足 threshold1 < threshold2 < threshold3' });
@@ -270,12 +273,12 @@ router.post('/:id/rebate', async (req, res) => {
         storeId: id,
         startAt: new Date(startAt),
         endAt: endAt ? new Date(endAt) : null,
-        threshold1: parseFloat(threshold1),
-        rebate1: parseFloat(rebate1),
-        threshold2: parseFloat(threshold2),
-        rebate2: parseFloat(rebate2),
-        threshold3: parseFloat(threshold3),
-        rebate3: parseFloat(rebate3),
+        threshold1: threshold1,
+        rebate1: rebate1,
+        threshold2: threshold2,
+        rebate2: rebate2,
+        threshold3: threshold3,
+        rebate3: rebate3,
       },
     });
 
@@ -312,9 +315,9 @@ router.post('/:id/rebate/close', async (req, res) => {
       rebate3: period.rebate3,
     });
 
-    const manualRebate = req.body.manualRebate;
-    const confirmedRebate = (manualRebate !== undefined && manualRebate !== null && manualRebate !== '')
-      ? parseFloat(manualRebate)
+    const rawManualRebate = req.body.manualRebate !== undefined ? req.body.manualRebate : req.body.manual_rebate;
+    const confirmedRebate = (rawManualRebate !== undefined && rawManualRebate !== null && rawManualRebate !== '')
+      ? parseFloat(rawManualRebate)
       : autoRebate;
 
     const operator = await prisma.user.findUnique({
@@ -347,7 +350,7 @@ router.get('/:id/rebate/history', async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (req.user.role !== 'admin' && req.user.storeId !== id) {
+    if (req.user.role === 'store_user' && req.user.storeId !== id) {
       return res.status(403).json({ error: '无权访问该门店' });
     }
 
@@ -372,7 +375,7 @@ router.put('/:id/rebate/history/:rebateId', async (req, res) => {
       return res.status(403).json({ error: '无权操作返利' });
     }
 
-    const { confirmedRebate } = req.body;
+    const confirmedRebate = req.body.confirmedRebate !== undefined ? req.body.confirmedRebate : req.body.confirmed_rebate;
 
     const existing = await prisma.storeRebatePeriod.findFirst({
       where: { id: rebateId, storeId: id, status: 'confirmed' },
@@ -393,6 +396,34 @@ router.put('/:id/rebate/history/:rebateId', async (req, res) => {
   } catch (error) {
     console.error('Update confirmed rebate error:', error);
     res.status(500).json({ error: '更新返利金额失败' });
+  }
+});
+
+// DELETE /api/stores/:id/rebate/history/:rebateId - Delete confirmed rebate period (admin/super_admin only)
+router.delete('/:id/rebate/history/:rebateId', async (req, res) => {
+  try {
+    const { id, rebateId } = req.params;
+
+    if (req.user.role !== 'super_admin' && req.user.role !== 'admin') {
+      return res.status(403).json({ error: '无权操作返利' });
+    }
+
+    const existing = await prisma.storeRebatePeriod.findFirst({
+      where: { id: rebateId, storeId: id, status: 'confirmed' },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: '返利周期不存在或未确认' });
+    }
+
+    await prisma.storeRebatePeriod.delete({
+      where: { id: rebateId },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete confirmed rebate error:', error);
+    res.status(500).json({ error: '删除返利周期失败' });
   }
 });
 

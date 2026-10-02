@@ -1,13 +1,27 @@
 // Views/HomeView.swift
 import SwiftUI
 
+// MARK: - 金额隐私打码（Dashboard 截图用：默认隐藏，点卡片显示）
+private struct MaskAmountsKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+extension EnvironmentValues {
+    var maskAmounts: Bool {
+        get { self[MaskAmountsKey.self] }
+        set { self[MaskAmountsKey.self] = newValue }
+    }
+}
+
 enum DashboardDetail: Identifiable {
     case customersByStore
     case todayTransactions
     case monthlyRevenue
+    case lastMonthRevenue
+    case yearRevenue
     case pendingDeliveries
     case pendingCollections
     case monthlyTop
+    case allTimeTop
     case storeRebates
     case revenueReport
     case revenueSplit
@@ -17,9 +31,12 @@ enum DashboardDetail: Identifiable {
         case .customersByStore: return "customersByStore"
         case .todayTransactions: return "todayTransactions"
         case .monthlyRevenue: return "monthlyRevenue"
+        case .lastMonthRevenue: return "lastMonthRevenue"
+        case .yearRevenue: return "yearRevenue"
         case .pendingDeliveries: return "pendingDeliveries"
         case .pendingCollections: return "pendingCollections"
         case .monthlyTop: return "monthlyTop"
+        case .allTimeTop: return "allTimeTop"
         case .storeRebates: return "storeRebates"
         case .revenueReport: return "revenueReport"
         case .revenueSplit: return "revenueSplit"
@@ -35,6 +52,10 @@ struct HomeView: View {
     @State private var packages: [ServicePackage] = []
     @State private var storeRebatePeriods: [StoreRebatePeriod] = []
     @State private var isLoading = true
+    
+    // 金额隐私打码：默认隐藏，点卡片单独显示，导航栏眼睛按钮全局切换
+    @AppStorage("dashboardPrivacyMask") private var privacyMask = true
+    @State private var revealedCards: Set<String> = []
     
     // Dashboard summary cache
     @State private var summary: DashboardService.DashboardSummaryResponse? = nil
@@ -52,6 +73,12 @@ struct HomeView: View {
     }
     private var startOfDay: Date {
         calendar.startOfDay(for: now)
+    }
+    private var startOfLastMonth: Date {
+        calendar.date(byAdding: .month, value: -1, to: startOfMonth)!
+    }
+    private var startOfYear: Date {
+        calendar.date(from: calendar.dateComponents([.year], from: now))!
     }
     
     var totalCustomers: Int { summary?.customerCount ?? customers.count }
@@ -71,7 +98,10 @@ struct HomeView: View {
         todayReceived - todayStoreRebate
     }
     var todayReceived: Double {
-        summary?.today.photoElectric.received ?? todayTransactionsList.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+        if let summary = summary {
+            return summary.today.photoElectric.received + summary.today.medicalBeauty.received
+        }
+        return todayTransactionsList.reduce(0) { $0 + ($1.amountReceived ?? 0) }
     }
     var todayPhotoReceived: Double {
         summary?.today.photoElectric.received ?? todayTransactionsList.filter { $0.branch == .photoElectric }.reduce(0) { $0 + ($1.amountReceived ?? 0) }
@@ -98,10 +128,16 @@ struct HomeView: View {
         summary?.today.medicalBeauty.count ?? todayTransactionsList.filter { $0.branch == .medicalBeauty && ($0.amountReceived ?? 0) > 0 }.count
     }
     var todayOutstanding: Double {
-        summary?.today.photoElectric.outstanding ?? todayTransactionsList.reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
+        if let summary = summary {
+            return summary.today.photoElectric.outstanding + summary.today.medicalBeauty.outstanding
+        }
+        return todayTransactionsList.reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
     }
     var todayReceivedCount: Int {
-        summary?.today.photoElectric.count ?? todayTransactionsList.filter { ($0.amountReceived ?? 0) > 0 }.count
+        if let summary = summary {
+            return summary.today.photoElectric.count + summary.today.medicalBeauty.count
+        }
+        return todayTransactionsList.filter { ($0.amountReceived ?? 0) > 0 }.count
     }
     var todayRebateCount: Int {
         storeRebatePeriods.filter { $0.status == "confirmed" && ($0.confirmedAt?.isInCurrentDay ?? false) }.count
@@ -117,11 +153,17 @@ struct HomeView: View {
         monthlyReceived - monthlyRebate
     }
     var monthlyReceived: Double {
-        summary?.month.photoElectric.received ?? transactions.filter { $0.transactionDate >= startOfMonth }
+        if let summary = summary {
+            return summary.month.photoElectric.received + summary.month.medicalBeauty.received
+        }
+        return transactions.filter { $0.transactionDate >= startOfMonth }
             .reduce(0) { $0 + ($1.amountReceived ?? 0) }
     }
     var monthlyOutstanding: Double {
-        summary?.month.photoElectric.outstanding ?? transactions.filter { $0.transactionDate >= startOfMonth }
+        if let summary = summary {
+            return summary.month.photoElectric.outstanding + summary.month.medicalBeauty.outstanding
+        }
+        return transactions.filter { $0.transactionDate >= startOfMonth }
             .reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
     }
     var monthlyPhotoReceived: Double {
@@ -173,6 +215,113 @@ struct HomeView: View {
         summary?.today.medicalBeauty.amount ?? todayTransactionsList.filter { $0.branch == .medicalBeauty }.reduce(0) { $0 + ($1.amount ?? 0) }
     }
     
+    // MARK: - 上月收入
+    var lastMonthTransactions: [Transaction] {
+        transactions.filter { $0.transactionDate >= startOfLastMonth && $0.transactionDate < startOfMonth }
+    }
+    var lastMonthStoreRebate: Double {
+        if let rebate = summary?.lastMonth?.rebate {
+            return rebate
+        }
+        return storeRebatePeriods
+            .filter { $0.status == "confirmed"
+                && ($0.confirmedAt.map { $0 >= self.startOfLastMonth && $0 < self.startOfMonth } ?? false) }
+            .reduce(0) { $0 + ($1.confirmedRebate ?? 0) }
+    }
+    var lastMonthRebate: Double { lastMonthStoreRebate }
+    var lastMonthReceived: Double {
+        if let lastMonth = summary?.lastMonth {
+            return lastMonth.photoElectric.received + lastMonth.medicalBeauty.received
+        }
+        return lastMonthTransactions.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+    }
+    var lastMonthRevenue: Double {
+        lastMonthReceived - lastMonthRebate
+    }
+    var lastMonthPhotoReceived: Double {
+        summary?.lastMonth?.photoElectric.received ?? lastMonthTransactions.filter { $0.branch == .photoElectric }.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+    }
+    var lastMonthMedicalReceived: Double {
+        summary?.lastMonth?.medicalBeauty.received ?? lastMonthTransactions.filter { $0.branch == .medicalBeauty }.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+    }
+    var lastMonthPhotoRevenue: Double {
+        lastMonthPhotoReceived - lastMonthRebate
+    }
+    var lastMonthMedicalRevenue: Double {
+        lastMonthMedicalReceived
+    }
+    var lastMonthPhotoCount: Int {
+        summary?.lastMonth?.photoElectric.count ?? lastMonthTransactions.filter { $0.branch == .photoElectric && ($0.amountReceived ?? 0) > 0 }.count
+    }
+    var lastMonthMedicalCount: Int {
+        summary?.lastMonth?.medicalBeauty.count ?? lastMonthTransactions.filter { $0.branch == .medicalBeauty && ($0.amountReceived ?? 0) > 0 }.count
+    }
+    var lastMonthPhotoOutstanding: Double {
+        summary?.lastMonth?.photoElectric.outstanding ?? lastMonthTransactions.filter { $0.branch == .photoElectric }.reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
+    }
+    var lastMonthMedicalOutstanding: Double {
+        summary?.lastMonth?.medicalBeauty.outstanding ?? lastMonthTransactions.filter { $0.branch == .medicalBeauty }.reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
+    }
+    var lastMonthPhotoAmount: Double {
+        summary?.lastMonth?.photoElectric.amount ?? lastMonthTransactions.filter { $0.branch == .photoElectric }.reduce(0) { $0 + ($1.amount ?? 0) }
+    }
+    var lastMonthMedicalAmount: Double {
+        summary?.lastMonth?.medicalBeauty.amount ?? lastMonthTransactions.filter { $0.branch == .medicalBeauty }.reduce(0) { $0 + ($1.amount ?? 0) }
+    }
+    
+    // MARK: - 全年累计收入
+    var yearTransactions: [Transaction] {
+        transactions.filter { $0.transactionDate >= startOfYear }
+    }
+    var yearStoreRebate: Double {
+        if let rebate = summary?.year?.rebate {
+            return rebate
+        }
+        return storeRebatePeriods
+            .filter { $0.status == "confirmed" && ($0.confirmedAt.map { $0 >= self.startOfYear } ?? false) }
+            .reduce(0) { $0 + ($1.confirmedRebate ?? 0) }
+    }
+    var yearRebate: Double { yearStoreRebate }
+    var yearReceived: Double {
+        if let year = summary?.year {
+            return year.photoElectric.received + year.medicalBeauty.received
+        }
+        return yearTransactions.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+    }
+    var yearRevenue: Double {
+        yearReceived - yearRebate
+    }
+    var yearPhotoReceived: Double {
+        summary?.year?.photoElectric.received ?? yearTransactions.filter { $0.branch == .photoElectric }.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+    }
+    var yearMedicalReceived: Double {
+        summary?.year?.medicalBeauty.received ?? yearTransactions.filter { $0.branch == .medicalBeauty }.reduce(0) { $0 + ($1.amountReceived ?? 0) }
+    }
+    var yearPhotoRevenue: Double {
+        yearPhotoReceived - yearRebate
+    }
+    var yearMedicalRevenue: Double {
+        yearMedicalReceived
+    }
+    var yearPhotoCount: Int {
+        summary?.year?.photoElectric.count ?? yearTransactions.filter { $0.branch == .photoElectric && ($0.amountReceived ?? 0) > 0 }.count
+    }
+    var yearMedicalCount: Int {
+        summary?.year?.medicalBeauty.count ?? yearTransactions.filter { $0.branch == .medicalBeauty && ($0.amountReceived ?? 0) > 0 }.count
+    }
+    var yearPhotoOutstanding: Double {
+        summary?.year?.photoElectric.outstanding ?? yearTransactions.filter { $0.branch == .photoElectric }.reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
+    }
+    var yearMedicalOutstanding: Double {
+        summary?.year?.medicalBeauty.outstanding ?? yearTransactions.filter { $0.branch == .medicalBeauty }.reduce(0) { $0 + ($1.outstandingAmount ?? 0) }
+    }
+    var yearPhotoAmount: Double {
+        summary?.year?.photoElectric.amount ?? yearTransactions.filter { $0.branch == .photoElectric }.reduce(0) { $0 + ($1.amount ?? 0) }
+    }
+    var yearMedicalAmount: Double {
+        summary?.year?.medicalBeauty.amount ?? yearTransactions.filter { $0.branch == .medicalBeauty }.reduce(0) { $0 + ($1.amount ?? 0) }
+    }
+    
     var pendingTransactionsList: [Transaction] {
         transactions.filter {
             ($0.status == .pending || $0.status == .confirmed || $0.status == .inProgress)
@@ -216,6 +365,20 @@ struct HomeView: View {
     var topStore: (name: String, revenue: Double)? { monthTopStores.first }
     var topCustomer: (name: String, revenue: Double)? { monthTopCustomers.first }
     
+    // 历史最佳（自使用 App 至今，全量交易统计）
+    var allTimeTopStores: [(name: String, revenue: Double)] {
+        Dictionary(grouping: transactions, by: { $0.storeName ?? "未知门店" })
+            .map { (name: $0.key, revenue: $0.value.reduce(0) { $0 + $1.amount }) }
+            .sorted { $0.revenue > $1.revenue }
+    }
+    var allTimeTopCustomers: [(name: String, revenue: Double)] {
+        Dictionary(grouping: transactions, by: { $0.customerName ?? "未知客户" })
+            .map { (name: $0.key, revenue: $0.value.reduce(0) { $0 + $1.amount }) }
+            .sorted { $0.revenue > $1.revenue }
+    }
+    var allTimeTopStore: (name: String, revenue: Double)? { allTimeTopStores.first }
+    var allTimeTopCustomer: (name: String, revenue: Double)? { allTimeTopCustomers.first }
+    
     var monthlyStoreRebate: Double {
         summary?.month.rebate ?? (storeRebatePeriods
             .filter { $0.status == "confirmed" && ($0.confirmedAt?.isInCurrentMonth ?? false) }
@@ -223,7 +386,10 @@ struct HomeView: View {
     }
     var monthlyRebate: Double { monthlyStoreRebate }
     var monthlyReceivedCount: Int {
-        summary?.month.photoElectric.count ?? monthTransactions.filter { ($0.amountReceived ?? 0) > 0 }.count
+        if let summary = summary {
+            return summary.month.photoElectric.count + summary.month.medicalBeauty.count
+        }
+        return monthTransactions.filter { ($0.amountReceived ?? 0) > 0 }.count
     }
     var monthlyRebateCount: Int {
         storeRebatePeriods.filter { $0.status == "confirmed" && ($0.confirmedAt?.isInCurrentMonth ?? false) }.count
@@ -292,8 +458,33 @@ struct HomeView: View {
                         topStoreName: topStore?.name,
                         topStoreRevenue: topStore?.revenue ?? 0,
                         topCustomerRevenue: topCustomer?.revenue ?? 0,
+                        allTimeTopStoreName: allTimeTopStore?.name,
+                        allTimeTopStoreRevenue: allTimeTopStore?.revenue ?? 0,
+                        allTimeTopCustomerRevenue: allTimeTopCustomer?.revenue ?? 0,
                         monthlyRebate: monthlyRebate,
+                        lastMonthRevenue: lastMonthRevenue,
+                        lastMonthPhotoAmount: lastMonthPhotoAmount,
+                        lastMonthPhotoReceived: lastMonthPhotoReceived,
+                        lastMonthPhotoOutstanding: lastMonthPhotoOutstanding,
+                        lastMonthPhotoCount: lastMonthPhotoCount,
+                        lastMonthMedicalAmount: lastMonthMedicalAmount,
+                        lastMonthMedicalReceived: lastMonthMedicalReceived,
+                        lastMonthMedicalOutstanding: lastMonthMedicalOutstanding,
+                        lastMonthMedicalCount: lastMonthMedicalCount,
+                        lastMonthRebate: lastMonthRebate,
+                        yearRevenue: yearRevenue,
+                        yearPhotoAmount: yearPhotoAmount,
+                        yearPhotoReceived: yearPhotoReceived,
+                        yearPhotoOutstanding: yearPhotoOutstanding,
+                        yearPhotoCount: yearPhotoCount,
+                        yearMedicalAmount: yearMedicalAmount,
+                        yearMedicalReceived: yearMedicalReceived,
+                        yearMedicalOutstanding: yearMedicalOutstanding,
+                        yearMedicalCount: yearMedicalCount,
+                        yearRebate: yearRebate,
                         isLoading: isLoading,
+                        privacyMask: privacyMask,
+                        revealedCards: $revealedCards,
                         onTap: { selectedDetail = $0 }
                     )
                     
@@ -314,6 +505,18 @@ struct HomeView: View {
                 .padding()
             }
             .navigationTitle("首页")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        privacyMask.toggle()
+                        revealedCards.removeAll()
+                    } label: {
+                        Image(systemName: privacyMask ? "eye.slash" : "eye")
+                            .foregroundColor(privacyMask ? .gray : .blue)
+                    }
+                    .accessibilityLabel(privacyMask ? "显示全部金额" : "隐藏全部金额")
+                }
+            }
             .refreshable { await loadDashboardData() }
             .task { await loadDashboardData() }
             .onAppear { Task { await loadDashboardData() } }
@@ -327,6 +530,10 @@ struct HomeView: View {
                             TodayTransactionsView(transactions: todayTransactionsList)
                         case .monthlyRevenue:
                             MonthlyRevenueTrendView(transactions: transactions)
+                        case .lastMonthRevenue:
+                            MonthlyRevenueTrendView(transactions: lastMonthTransactions, anchor: startOfLastMonth)
+                        case .yearRevenue:
+                            YearRevenueTrendView(transactions: yearTransactions)
                         case .pendingDeliveries:
                             PendingDeliveriesView(transactions: pendingTransactionsList) {
                                 await loadDashboardData()
@@ -335,6 +542,8 @@ struct HomeView: View {
                             PendingCollectionsView(customers: pendingCollectionCustomers, stores: stores)
                         case .monthlyTop:
                             MonthlyTopView(transactions: transactions)
+                        case .allTimeTop:
+                            AllTimeTopView(transactions: transactions)
                         case .storeRebates:
                             StoreRebatesView(stores: stores)
                         case .revenueReport:
@@ -496,9 +705,42 @@ struct StatsGrid: View {
     let topStoreName: String?
     let topStoreRevenue: Double
     let topCustomerRevenue: Double
+    let allTimeTopStoreName: String?
+    let allTimeTopStoreRevenue: Double
+    let allTimeTopCustomerRevenue: Double
     let monthlyRebate: Double
+    let lastMonthRevenue: Double
+    let lastMonthPhotoAmount: Double
+    let lastMonthPhotoReceived: Double
+    let lastMonthPhotoOutstanding: Double
+    let lastMonthPhotoCount: Int
+    let lastMonthMedicalAmount: Double
+    let lastMonthMedicalReceived: Double
+    let lastMonthMedicalOutstanding: Double
+    let lastMonthMedicalCount: Int
+    let lastMonthRebate: Double
+    let yearRevenue: Double
+    let yearPhotoAmount: Double
+    let yearPhotoReceived: Double
+    let yearPhotoOutstanding: Double
+    let yearPhotoCount: Int
+    let yearMedicalAmount: Double
+    let yearMedicalReceived: Double
+    let yearMedicalOutstanding: Double
+    let yearMedicalCount: Int
+    let yearRebate: Double
     let isLoading: Bool
+    let privacyMask: Bool
+    @Binding var revealedCards: Set<String>
     let onTap: (DashboardDetail) -> Void
+    
+    /// 该卡片当前是否处于打码状态
+    private func isMasked(_ key: String) -> Bool {
+        privacyMask && !revealedCards.contains(key)
+    }
+    private func reveal(_ key: String) {
+        revealedCards.insert(key)
+    }
     
     var body: some View {
         LazyVGrid(columns: [
@@ -523,7 +765,7 @@ struct StatsGrid: View {
             
             StatCard(
                 title: "本月收入",
-                value: isLoading ? "--" : "¥\(Int(monthlyRevenue))",
+                value: isLoading ? "--" : (isMasked("month") ? "¥****" : "¥\(Int(monthlyRevenue))"),
                 subtitle: {
                     BranchStack(
                         medicalAmount: monthlyMedicalAmount,
@@ -536,14 +778,17 @@ struct StatsGrid: View {
                         photoCount: monthlyPhotoCount,
                         totalRebate: monthlyRebate
                     )
+                    .environment(\.maskAmounts, isMasked("month"))
                 },
                 icon: "chart.line.uptrend.xyaxis",
                 color: .orange
-            ) { onTap(.monthlyRevenue) }
+            ) {
+                if isMasked("month") { reveal("month") } else { onTap(.monthlyRevenue) }
+            }
 
             StatCard(
                 title: "今日成交",
-                value: isLoading ? "--" : "¥\(Int(todayRevenue))",
+                value: isLoading ? "--" : (isMasked("today") ? "¥****" : "¥\(Int(todayRevenue))"),
                 subtitle: {
                     BranchStack(
                         medicalAmount: todayMedicalAmount,
@@ -556,34 +801,99 @@ struct StatsGrid: View {
                         photoCount: todayPhotoCount,
                         totalRebate: todayRebate
                     )
+                    .environment(\.maskAmounts, isMasked("today"))
                 },
                 icon: "cart.fill",
                 color: .green
-            ) { onTap(.todayTransactions) }
+            ) {
+                if isMasked("today") { reveal("today") } else { onTap(.todayTransactions) }
+            }
             
             StatCard(
-                title: "待收款",
-                value: isLoading ? "--" : "\(pendingCollectionCount)/¥\(Int(totalOutstanding))",
-                subtitle: isLoading ? nil : "客户数/待收金额",
-                icon: "creditcard.fill",
-                color: .red
-            ) { onTap(.pendingCollections) }
+                title: "上月收入",
+                value: isLoading ? "--" : (isMasked("lastMonth") ? "¥****" : "¥\(Int(lastMonthRevenue))"),
+                subtitle: {
+                    BranchStack(
+                        medicalAmount: lastMonthMedicalAmount,
+                        medicalReceived: lastMonthMedicalReceived,
+                        medicalOutstanding: lastMonthMedicalOutstanding,
+                        medicalCount: lastMonthMedicalCount,
+                        photoAmount: lastMonthPhotoAmount,
+                        photoReceived: lastMonthPhotoReceived,
+                        photoOutstanding: lastMonthPhotoOutstanding,
+                        photoCount: lastMonthPhotoCount,
+                        totalRebate: lastMonthRebate
+                    )
+                    .environment(\.maskAmounts, isMasked("lastMonth"))
+                },
+                icon: "clock.arrow.circlepath",
+                color: .teal
+            ) {
+                if isMasked("lastMonth") { reveal("lastMonth") } else { onTap(.lastMonthRevenue) }
+            }
+            
+            StatCard(
+                title: "全年累计收入",
+                value: isLoading ? "--" : (isMasked("year") ? "¥****" : "¥\(Int(yearRevenue))"),
+                subtitle: {
+                    BranchStack(
+                        medicalAmount: yearMedicalAmount,
+                        medicalReceived: yearMedicalReceived,
+                        medicalOutstanding: yearMedicalOutstanding,
+                        medicalCount: yearMedicalCount,
+                        photoAmount: yearPhotoAmount,
+                        photoReceived: yearPhotoReceived,
+                        photoOutstanding: yearPhotoOutstanding,
+                        photoCount: yearPhotoCount,
+                        totalRebate: yearRebate
+                    )
+                    .environment(\.maskAmounts, isMasked("year"))
+                },
+                icon: "calendar",
+                color: .indigo
+            ) {
+                if isMasked("year") { reveal("year") } else { onTap(.yearRevenue) }
+            }
             
             StatCard(
                 title: "当月最佳成交",
                 value: isLoading ? "--" : (topStoreName ?? "暂无"),
-                subtitle: isLoading ? nil : "门店 ¥\(Int(topStoreRevenue)) · 客户 ¥\(Int(topCustomerRevenue))",
+                subtitle: isLoading ? nil : (isMasked("top") ? "门店 ¥**** · 客户 ¥****" : "门店 ¥\(Int(topStoreRevenue)) · 客户 ¥\(Int(topCustomerRevenue))"),
                 icon: "trophy.fill",
                 color: .yellow
-            ) { onTap(.monthlyTop) }
+            ) {
+                if isMasked("top") { reveal("top") } else { onTap(.monthlyTop) }
+            }
+            
+            StatCard(
+                title: "历史最佳成交",
+                value: isLoading ? "--" : (allTimeTopStoreName ?? "暂无"),
+                subtitle: isLoading ? nil : (isMasked("allTimeTop") ? "门店 ¥**** · 客户 ¥****" : "门店 ¥\(Int(allTimeTopStoreRevenue)) · 客户 ¥\(Int(allTimeTopCustomerRevenue))"),
+                icon: "crown.fill",
+                color: .pink
+            ) {
+                if isMasked("allTimeTop") { reveal("allTimeTop") } else { onTap(.allTimeTop) }
+            }
+            
+            StatCard(
+                title: "待收款",
+                value: isLoading ? "--" : (isMasked("pending") ? "\(pendingCollectionCount)/¥****" : "\(pendingCollectionCount)/¥\(Int(totalOutstanding))"),
+                subtitle: isLoading ? nil : "客户数/待收金额",
+                icon: "creditcard.fill",
+                color: .red
+            ) {
+                if isMasked("pending") { reveal("pending") } else { onTap(.pendingCollections) }
+            }
             
             StatCard(
                 title: "门店返利",
-                value: isLoading ? "--" : "¥\(Int(monthlyRebate))",
-                subtitle: isLoading ? nil : "本月已确认 \(monthlyRebateCount) 笔",
+                value: isLoading ? "--" : (isMasked("rebate") ? "¥****" : "¥\(Int(monthlyRebate))"),
+                subtitle: isLoading ? nil : (isMasked("rebate") ? "本月已确认 ** 笔" : "本月已确认 \(monthlyRebateCount) 笔"),
                 icon: "arrowshape.turn.up.left.fill",
                 color: .orange
-            ) { onTap(.storeRebates) }
+            ) {
+                if isMasked("rebate") { reveal("rebate") } else { onTap(.storeRebates) }
+            }
         }
     }
 }
@@ -764,6 +1074,7 @@ private struct BranchBlock: View {
 private struct RebateSubItem: View {
     let label: String
     let amount: Double
+    @Environment(\.maskAmounts) private var maskAmounts
 
     var body: some View {
         HStack(spacing: 6) {
@@ -773,7 +1084,7 @@ private struct RebateSubItem: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .frame(width: 28, alignment: .leading)
-            Text("¥\(Int(amount))")
+            Text(maskAmounts ? "¥****" : "¥\(Int(amount))")
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.orange)
                 .lineLimit(1)
@@ -787,6 +1098,7 @@ private struct SubItem: View {
     let label: String
     let amount: Double
     var count: Int? = nil
+    @Environment(\.maskAmounts) private var maskAmounts
 
     var body: some View {
         HStack(spacing: 6) {
@@ -796,12 +1108,12 @@ private struct SubItem: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .frame(width: 28, alignment: .leading)
-            Text("¥\(Int(amount))")
+            Text(maskAmounts ? "¥****" : "¥\(Int(amount))")
                 .font(.caption2.weight(.medium))
                 .lineLimit(1)
                 .layoutPriority(1)
             if let count = count {
-                Text("(\(count)笔)")
+                Text(maskAmounts ? "(**笔)" : "(\(count)笔)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

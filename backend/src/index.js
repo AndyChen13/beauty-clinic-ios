@@ -26,9 +26,13 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/service-records', require('./routes/serviceRecords'));
 app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/users', require('./routes/users'));
-app.use('/api/deletion-requests', require('./routes/deletionRequests'));
+app.use('/api/operation-approvals', require('./routes/operation-approvals'));
 app.use('/api/packages', require('./routes/packages'));
 app.use('/api/deliveries', require('./routes/deliveries'));
+app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/training-materials', require('./routes/trainingMaterials'));
+app.use('/api/login-logs', require('./routes/login-logs'));
+app.use('/api/export', require('./routes/export'));
 
 // Error handler
 app.use((err, req, res, next) => {

@@ -367,8 +367,13 @@ class AdminService {
         let notes: String?
     }
 
-    func listPendingApprovals() async throws -> [OperationApproval] {
-        let response: OperationApprovalListResponse = try await APIClient.shared.get(path: "/api/operation-approvals/pending")
+    func listAllApprovals() async throws -> [OperationApproval] {
+        let response: OperationApprovalListResponse = try await APIClient.shared.get(path: "/api/operation-approvals")
+        return response.approvals
+    }
+
+    func listMyApprovals() async throws -> [OperationApproval] {
+        let response: OperationApprovalListResponse = try await APIClient.shared.get(path: "/api/operation-approvals/mine")
         return response.approvals
     }
 
@@ -386,6 +391,37 @@ class AdminService {
             path: "/api/operation-approvals/\(id)/reject",
             body: OperationApprovalActionRequest(notes: notes)
         )
+    }
+
+    struct OperationApprovalCreateRequest: Codable {
+        let operationType: String
+        let targetType: String
+        let targetId: String
+        let payload: [String: JSONValue]?
+    }
+
+    struct OperationApprovalCreateResponse: Codable {
+        let success: Bool
+        let approval: OperationApproval
+    }
+
+    func createOperationApproval(
+        operationType: String,
+        targetType: String,
+        targetId: UUID,
+        payload: [String: JSONValue]? = nil
+    ) async throws -> OperationApproval {
+        let request = OperationApprovalCreateRequest(
+            operationType: operationType,
+            targetType: targetType,
+            targetId: targetId.uuidString,
+            payload: payload
+        )
+        let response: OperationApprovalCreateResponse = try await APIClient.shared.post(
+            path: "/api/operation-approvals",
+            body: request
+        )
+        return response.approval
     }
 }
 

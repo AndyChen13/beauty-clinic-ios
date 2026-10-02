@@ -53,6 +53,8 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
     let preferences: [String: String]?
     let photoUrl: String?
     let associatedStoreId: UUID?
+    /// 归属门店名称（由接口 store 关系解析，见 DataService）
+    let storeName: String?
     let createdBy: UUID?
     let lastVisit: Date?
     let firstTransactionDate: Date?
@@ -70,6 +72,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         case preferences
         case photoUrl = "photo_url"
         case associatedStoreId = "associated_store_id"
+        case storeName
         case createdBy = "created_by"
         case lastVisit = "last_visit"
         case firstTransactionDate = "first_transaction_date"
@@ -116,6 +119,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         preferences: [String: String]? = nil,
         photoUrl: String? = nil,
         associatedStoreId: UUID? = nil,
+        storeName: String? = nil,
         createdBy: UUID? = nil,
         lastVisit: Date? = nil,
         firstTransactionDate: Date? = nil,
@@ -136,6 +140,7 @@ struct Customer: Codable, Identifiable, Hashable, Sendable {
         self.preferences = preferences
         self.photoUrl = photoUrl
         self.associatedStoreId = associatedStoreId
+        self.storeName = storeName
         self.createdBy = createdBy
         self.lastVisit = lastVisit
         self.firstTransactionDate = firstTransactionDate

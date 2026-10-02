@@ -19,6 +19,7 @@ struct TransactionEditSheet: View {
     @State private var totalSessionsString: String = ""
     @State private var branch: TransactionBranch = .photoElectric
     @State private var notes: String = ""
+    @State private var transactionDate = Date()
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showDeleteConfirmation = false
@@ -69,6 +70,8 @@ struct TransactionEditSheet: View {
                 }
                 
                 Section("修改字段") {
+                    DatePicker("成交时间", selection: $transactionDate, displayedComponents: .date)
+                    
                     Picker("成交归属", selection: $branch) {
                         ForEach(TransactionBranch.allCases, id: \.self) { b in
                             Text(b.displayName).tag(b)
@@ -176,6 +179,7 @@ struct TransactionEditSheet: View {
                 }
                 branch = transaction.branch
                 notes = transaction.notes ?? ""
+                transactionDate = transaction.transactionDate
             }
             .confirmationDialog("确认删除成交记录？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
                 Button("删除", role: .destructive) {
@@ -239,7 +243,8 @@ struct TransactionEditSheet: View {
                 amountReceived: finalAmountReceived,
                 branch: branch,
                 totalSessions: finalTotalSessions,
-                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes
+                notes: notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes,
+                transactionDate: transactionDate
             )
             _ = try await TransactionService.shared.updateTransaction(
                 id: transaction.id.uuidString,

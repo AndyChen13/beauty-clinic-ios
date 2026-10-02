@@ -11,19 +11,49 @@ struct OperationApprovalView: View {
     @State private var showDetail = false
     @State private var adminNote = ""
 
+    private var isAdmin: Bool { userState.isAdmin }
+
+    private var pendingApprovals: [OperationApproval] {
+        approvals.filter { $0.status == .pending }
+    }
+
+    private var approvedApprovals: [OperationApproval] {
+        approvals.filter { $0.status == .approved }
+    }
+
+    private var rejectedApprovals: [OperationApproval] {
+        approvals.filter { $0.status == .rejected }
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                if !approvals.isEmpty {
-                    Section("待审批操作 (\(approvals.count))") {
-                        ForEach(approvals) { approval in
+                if !pendingApprovals.isEmpty {
+                    Section("待审批 (\(pendingApprovals.count))") {
+                        ForEach(pendingApprovals) { approval in
                             ApprovalRow(approval: approval)
                                 .contentShape(Rectangle())
-                                .onTapGesture {
-                                    selectedApproval = approval
-                                    adminNote = ""
-                                    showDetail = true
-                                }
+                                .onTapGesture { show(approval) }
+                        }
+                    }
+                }
+
+                if !approvedApprovals.isEmpty {
+                    Section("已通过") {
+                        ForEach(approvedApprovals) { approval in
+                            ApprovalRow(approval: approval)
+                                .contentShape(Rectangle())
+                                .onTapGesture { show(approval) }
+                        }
+                    }
+                }
+
+                if !rejectedApprovals.isEmpty {
+                    Section("已驳回") {
+                        ForEach(rejectedApprovals) { approval in
+                            ApprovalRow(approval: approval)
+                                .contentShape(Rectangle())
+                                .onTapGesture { show(approval) }
                         }
                     }
                 }
@@ -32,14 +62,16 @@ struct OperationApprovalView: View {
                     Section {
                         EmptyStateView(
                             icon: "checkmark.shield",
-                            title: "暂无待审批操作",
-                            subtitle: "员工提交的修改/删除申请会显示在这里"
+                            title: isAdmin ? "暂无待审批操作" : "暂无审批记录",
+                            subtitle: isAdmin
+                                ? "员工提交的修改/删除申请会显示在这里"
+                                : "你提交的申请通过后会显示在这里"
                         )
                         .padding(.vertical, 40)
                     }
                 }
             }
-            .navigationTitle("操作审批")
+            .navigationTitle(isAdmin ? "操作审批" : "我的审批")
             .refreshable { await loadApprovals() }
             .task { await loadApprovals() }
             .sheet(isPresented: $showDetail) {
@@ -47,6 +79,7 @@ struct OperationApprovalView: View {
                     OperationApprovalDetailSheet(
                         approval: approval,
                         adminNote: $adminNote,
+                        canApprove: isAdmin && approval.status == .pending,
                         onApprove: { approve(approval) },
                         onReject: { reject(approval) }
                     )
@@ -60,14 +93,22 @@ struct OperationApprovalView: View {
         }
     }
 
+    private func show(_ approval: OperationApproval) {
+        selectedApproval = approval
+        adminNote = ""
+        showDetail = true
+    }
+
     private func loadApprovals() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            let list = try await AdminService.shared.listPendingApprovals()
+            let list = try await isAdmin
+                ? AdminService.shared.listAllApprovals()
+                : AdminService.shared.listMyApprovals()
             approvals = list
         } catch {
-            print("加载待审批操作失败: \(error)")
+            print("加载审批记录失败: \(error)")
             errorMessage = "加载失败: \(error.localizedDescription)"
             showError = true
         }
@@ -76,7 +117,10 @@ struct OperationApprovalView: View {
     private func approve(_ approval: OperationApproval) {
         Task {
             do {
-                try await AdminService.shared.approveOperation(id: approval.id, notes: adminNote.isEmpty ? nil : adminNote)
+                try await AdminService.shared.approveOperation(
+                    id: approval.id,
+                    notes: adminNote.isEmpty ? nil : adminNote
+                )
                 await loadApprovals()
             } catch {
                 errorMessage = "审批失败: \(error.localizedDescription)"
@@ -88,7 +132,10 @@ struct OperationApprovalView: View {
     private func reject(_ approval: OperationApproval) {
         Task {
             do {
-                try await AdminService.shared.rejectOperation(id: approval.id, notes: adminNote.isEmpty ? nil : adminNote)
+                try await AdminService.shared.rejectOperation(
+                    id: approval.id,
+                    notes: adminNote.isEmpty ? nil : adminNote
+                )
                 await loadApprovals()
             } catch {
                 errorMessage = "拒绝失败: \(error.localizedDescription)"
@@ -105,6 +152,9 @@ struct ApprovalRow: View {
         switch approval.targetType {
         case "transaction": return "交易"
         case "service_record": return "服务记录"
+        case "customer": return "客户"
+        case "store": return "门店"
+        case "package": return "套餐"
         default: return approval.targetType
         }
     }
@@ -120,12 +170,12 @@ struct ApprovalRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(Color.orange.opacity(0.15))
+                .fill(statusColor.opacity(0.15))
                 .frame(width: 36, height: 36)
                 .overlay(
-                    Image(systemName: "clock")
+                    Image(systemName: statusIcon)
                         .font(.system(size: 14))
-                        .foregroundColor(.orange)
+                        .foregroundColor(statusColor)
                 )
 
             VStack(alignment: .leading, spacing: 3) {
@@ -143,12 +193,12 @@ struct ApprovalRow: View {
 
             Spacer()
 
-            Text("待审批")
+            Text(approval.status.displayName)
                 .font(.caption2.weight(.medium))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(Color.orange.opacity(0.12))
-                .foregroundColor(.orange)
+                .background(statusColor.opacity(0.12))
+                .foregroundColor(statusColor)
                 .clipShape(Capsule())
         }
         .padding(.vertical, 4)
@@ -160,6 +210,18 @@ struct ApprovalRow: View {
         }
         return "申请人"
     }
+
+    private var statusColor: Color {
+        approval.status.color
+    }
+
+    private var statusIcon: String {
+        switch approval.status {
+        case .pending: return "clock"
+        case .approved: return "checkmark"
+        case .rejected: return "xmark"
+        }
+    }
 }
 
 struct OperationApprovalDetailSheet: View {
@@ -167,6 +229,7 @@ struct OperationApprovalDetailSheet: View {
 
     let approval: OperationApproval
     @Binding var adminNote: String
+    let canApprove: Bool
     let onApprove: () -> Void
     let onReject: () -> Void
 
@@ -174,6 +237,9 @@ struct OperationApprovalDetailSheet: View {
         switch approval.targetType {
         case "transaction": return "交易"
         case "service_record": return "服务记录"
+        case "customer": return "客户"
+        case "store": return "门店"
+        case "package": return "套餐"
         default: return approval.targetType
         }
     }
@@ -205,31 +271,43 @@ struct OperationApprovalDetailSheet: View {
                     }
                 }
 
-                Section("审批备注") {
-                    TextEditor(text: $adminNote)
-                        .frame(minHeight: 80)
-                }
-
-                Section {
-                    Button(role: operationDisplay == "删除" ? .destructive : .none) {
-                        onApprove()
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            Text(operationDisplay == "删除" ? "同意删除" : "同意修改")
-                            Spacer()
-                        }
+                if canApprove {
+                    Section("审批备注") {
+                        TextEditor(text: $adminNote)
+                            .frame(minHeight: 80)
                     }
 
-                    Button {
-                        onReject()
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Spacer()
-                            Text("驳回申请")
-                            Spacer()
+                    Section {
+                        Button(role: operationDisplay == "删除" ? .destructive : .none) {
+                            onApprove()
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text(operationDisplay == "删除" ? "同意删除" : "同意修改")
+                                Spacer()
+                            }
+                        }
+
+                        Button {
+                            onReject()
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text("驳回申请")
+                                Spacer()
+                            }
+                        }
+                    }
+                } else {
+                    Section("审批结果") {
+                        InfoRow(label: "状态", value: approval.status.displayName)
+                        if let reviewer = approval.reviewedByName, !reviewer.isEmpty {
+                            InfoRow(label: "审批人", value: reviewer)
+                        }
+                        if let date = approval.reviewedAt {
+                            InfoRow(label: "审批时间", value: date.formatted())
                         }
                     }
                 }
@@ -266,7 +344,29 @@ struct OperationApprovalDetailSheet: View {
         case "service_details": return "服务记录"
         case "customer_feedback": return "客户反馈"
         case "extra_payment": return "额外付款"
+        case "customerName": return "客户姓名"
+        case "storeName": return "门店名称"
+        case "packageName": return "套餐名称"
+        case "reason": return "删除原因"
         default: return key
+        }
+    }
+}
+
+extension ApprovalStatus {
+    var displayName: String {
+        switch self {
+        case .pending: return "待审批"
+        case .approved: return "已通过"
+        case .rejected: return "已驳回"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .pending: return .orange
+        case .approved: return .green
+        case .rejected: return .red
         }
     }
 }
